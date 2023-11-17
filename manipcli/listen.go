@@ -3,6 +3,7 @@ package manipcli
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
@@ -12,7 +13,6 @@ import (
 	"go.aporeto.io/elemental"
 	"go.aporeto.io/manipulate"
 	"go.aporeto.io/manipulate/maniphttp"
-	"go.uber.org/zap"
 )
 
 // generateListenCommandForIdentity generates the command to listen for events based on its identity.
@@ -84,7 +84,7 @@ func generateListenCommand(modelManager elemental.ModelManager, manipulatorMaker
 					case evt := <-subscriber.Events():
 						result, err := formatEvents(outputFormat, false, evt)
 						if err != nil {
-							zap.L().Error("unable to format event", zap.Error(err))
+							slog.Error("unable to format event", err)
 						}
 
 						fmt.Fprint(cmd.OutOrStdout(), result)
@@ -92,22 +92,22 @@ func generateListenCommand(modelManager elemental.ModelManager, manipulatorMaker
 					case st := <-subscriber.Status():
 						switch st {
 						case manipulate.SubscriberStatusInitialConnection:
-							zap.L().Debug("status update", zap.String("status", "connected"))
+							slog.Debug("status update", "status", "connected")
 						case manipulate.SubscriberStatusInitialConnectionFailure:
-							zap.L().Warn("status update", zap.String("status", "connect failed"), zap.Error(pullErrorIfAny()))
+							slog.Warn("status update", "status", "connect failed", pullErrorIfAny())
 						case manipulate.SubscriberStatusDisconnection:
-							zap.L().Warn("status update", zap.String("status", "disconnected"), zap.Error(pullErrorIfAny()))
+							slog.Warn("status update", "status", "disconnected", pullErrorIfAny())
 						case manipulate.SubscriberStatusReconnection:
-							zap.L().Info("status update", zap.String("status", "reconnected"))
+							slog.Info("status update", "status", "reconnected")
 						case manipulate.SubscriberStatusReconnectionFailure:
-							zap.L().Debug("status update", zap.String("status", "reconnection failed"), zap.Error(pullErrorIfAny()))
+							slog.Debug("status update", "status", "reconnection failed", pullErrorIfAny())
 						case manipulate.SubscriberStatusFinalDisconnection:
-							zap.L().Debug("status update", zap.String("status", "terminated"))
+							slog.Debug("status update", "status", "terminated")
 							once.Do(func() { close(terminated) })
 						}
 
 					case err := <-subscriber.Errors():
-						zap.L().Error("Error received", zap.Error(err))
+						slog.Error("Error received", err)
 					}
 				}
 			}()

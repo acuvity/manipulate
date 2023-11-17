@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/viper"
 	"go.aporeto.io/elemental"
 	"go.aporeto.io/manipulate"
-	"go.uber.org/zap"
 )
 
 // generateDeleteManyCommandForIdentity generates the command to delete many objects based on its identity.
@@ -69,9 +68,6 @@ func generateDeleteManyCommandForIdentity(identity elemental.Identity, modelMana
 			objects := identifiables.List()
 
 			if !fConfirm {
-				for _, item := range objects {
-					zap.L().Debug(fmt.Sprintf("- %s with ID=%s will be removed", identity.Name, item.Identifier()))
-				}
 				return fmt.Errorf("you are about to delete %d %s. If you are sure, please use --%s option to delete %v", len(objects), identity.Category, flagConfirm, fConfirm)
 			}
 

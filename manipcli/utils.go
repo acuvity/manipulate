@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,7 +25,6 @@ import (
 	"github.com/spf13/viper"
 	"go.aporeto.io/elemental"
 	"go.aporeto.io/manipulate"
-	"go.uber.org/zap"
 	"k8s.io/helm/pkg/strvals"
 )
 
@@ -376,7 +376,7 @@ func setViperFlagsWithPrefix(cmd *cobra.Command, specifiable elemental.Attribute
 			}
 
 		default:
-			zap.L().Debug("use default type string for attribute", zap.String("attribute", spec.Name))
+			slog.Debug("use default type string for attribute", "attribute", spec.Name)
 			cmd.Flags().StringP(flagName, "", "", spec.Description)
 		}
 	}

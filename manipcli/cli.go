@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -12,7 +13,6 @@ import (
 	"go.aporeto.io/elemental"
 	"go.aporeto.io/manipulate"
 	"go.aporeto.io/manipulate/maniphttp"
-	"go.uber.org/zap"
 )
 
 // cliConfig hods the generate configuration.
@@ -182,49 +182,70 @@ func New(modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker,
 		if cmd, err := generateCreateCommandForIdentity(identity, modelManager, manipulatorMaker, optionArgumentsPrefix(cfg.argumentsPrefix)); err == nil {
 			createCmd.AddCommand(cmd)
 		} else {
-			zap.L().Debug("unable to generate create command for identity", zap.String("identity", identity.Name), zap.Error(err))
+			slog.Debug("unable to generate create command for identity",
+				"identity", identity.Name,
+				err,
+			)
 		}
 
 		if cmd, err := generateUpdateCommandForIdentity(identity, modelManager, manipulatorMaker, optionArgumentsPrefix(cfg.argumentsPrefix)); err == nil {
 			updateCmd.AddCommand(cmd)
 		} else {
-			zap.L().Debug("unable to generate update command for identity", zap.String("identity", identity.Name), zap.Error(err))
+			slog.Debug("unable to generate update command for identity",
+				"identity", identity.Name,
+				err,
+			)
 		}
 
 		if cmd, err := generateDeleteCommandForIdentity(identity, modelManager, manipulatorMaker); err == nil {
 			deleteCmd.AddCommand(cmd)
 		} else {
-			zap.L().Debug("unable to generate delete command for identity", zap.String("identity", identity.Name), zap.Error(err))
+			slog.Debug("unable to generate delete command for identity",
+				"identity", identity.Name,
+				err,
+			)
 		}
 
 		if cmd, err := generateDeleteManyCommandForIdentity(identity, modelManager, manipulatorMaker); err == nil {
 			deleteManyCmd.AddCommand(cmd)
 		} else {
-			zap.L().Debug("unable to generate delete-many command for identity", zap.String("identity", identity.Name), zap.Error(err))
+			slog.Debug("unable to generate delete-many command for identity",
+				"identity", identity.Name,
+				err,
+			)
 		}
 
 		if cmd, err := generateGetCommandForIdentity(identity, modelManager, manipulatorMaker); err == nil {
 			getCmd.AddCommand(cmd)
 		} else {
-			zap.L().Debug("unable to generate get command for identity", zap.String("identity", identity.Name), zap.Error(err))
+			slog.Debug("unable to generate get command for identity",
+				"identity", identity.Name,
+				err,
+			)
 		}
 
 		if cmd, err := generateListCommandForIdentity(identity, modelManager, manipulatorMaker); err == nil {
 			listCmd.AddCommand(cmd)
 		} else {
-			zap.L().Debug("unable to generate list command for identity", zap.String("identity", identity.Name), zap.Error(err))
+			slog.Debug("unable to generate list command for identity",
+				"identity", identity.Name,
+				err,
+			)
 		}
 
 		if cmd, err := generateCountCommandForIdentity(identity, modelManager, manipulatorMaker); err == nil {
 			countCmd.AddCommand(cmd)
 		} else {
-			zap.L().Debug("unable to generate count command for identity", zap.String("identity", identity.Name), zap.Error(err))
+			slog.Debug("unable to generate count command for identity",
+				"identity", identity.Name,
+				err,
+			)
 		}
 	}
 
 	listenCmd, err := generateListenCommand(modelManager, manipulatorMaker)
 	if err != nil {
-		zap.L().Debug("unable to generate listen command for identity", zap.Error(err))
+		slog.Debug("unable to generate listen command for identity", err)
 	}
 
 	rootCmd.AddCommand(

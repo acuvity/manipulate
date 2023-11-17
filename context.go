@@ -108,37 +108,37 @@ type Context interface {
 }
 
 type mcontext struct {
-	clientIP             string
-	countTotal           int
-	createFinalizer      FinalizerFunc
 	ctx                  context.Context
+	parent               elemental.Identifiable
+	filter               *elemental.Filter
+	opaque               map[string]any
+	createFinalizer      FinalizerFunc
+	retryFunc            RetryFunc
+	parameters           url.Values
+	password             string
+	next                 string
+	username             string
+	namespace            string
+	transactionID        TransactionID
 	externalTrackingID   string
+	idempotencyKey       string
+	writeConsistency     WriteConsistency
+	readConsistency      ReadConsistency
+	after                string
+	clientIP             string
 	externalTrackingType string
 	fields               []string
-	filter               *elemental.Filter
-	idempotencyKey       string
-	messages             []string
-	namespace            string
-	propagated           bool
 	order                []string
-	overrideProtection   bool
-	page                 int
-	pageSize             int
-	after                string
-	limit                int
-	next                 string
-	parameters           url.Values
-	parent               elemental.Identifiable
-	password             string
-	readConsistency      ReadConsistency
-	recursive            bool
-	retryFunc            RetryFunc
-	retryRatio           int64
-	transactionID        TransactionID
-	username             string
+	messages             []string
 	version              int
-	writeConsistency     WriteConsistency
-	opaque               map[string]any
+	limit                int
+	pageSize             int
+	page                 int
+	retryRatio           int64
+	countTotal           int
+	overrideProtection   bool
+	recursive            bool
+	propagated           bool
 }
 
 // NewContext creates a context with the given ContextOption.

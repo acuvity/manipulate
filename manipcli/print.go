@@ -24,11 +24,11 @@ type prepareOutputOption func(*prepareOutputConfig)
 
 // outputFormat retains all output information
 type outputFormat struct {
-	columns      []string
 	formatType   string
 	output       string
 	template     string
 	tableCaption string
+	columns      []string
 }
 
 // prepareOutputFormat returns an OutputFormat structure that contains output information

@@ -1,9 +1,9 @@
 module go.aporeto.io/manipulate
 
-go 1.20
+go 1.21
 
 require (
-	go.aporeto.io/elemental v1.123.0
+	go.aporeto.io/elemental v1.123.1-0.20231116202419-3d09d6d39dcc
 	go.aporeto.io/wsc v1.51.0
 )
 
@@ -24,7 +24,6 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
-	go.uber.org/zap v1.24.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.6.0
 	k8s.io/helm v2.17.0+incompatible
@@ -59,8 +58,6 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
 	github.com/ugorji/go/codec v1.2.9 // indirect
-	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/crypto v0.6.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect

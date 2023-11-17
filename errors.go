@@ -15,9 +15,8 @@ import "fmt"
 
 // ErrInvalidQuery represents an error due to an invalid query.
 type ErrInvalidQuery struct {
-	// DueToFilter represents whether the query was invalid likely due to the filter supplied by the client.
-	DueToFilter bool
 	Err         error
+	DueToFilter bool
 }
 
 // Unwrap unwraps the internal error.

@@ -14,12 +14,12 @@ package manipvortex
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"go.aporeto.io/elemental"
 	"go.aporeto.io/manipulate"
-	"go.uber.org/zap"
 )
 
 // updater is the type of all crud functions.
@@ -27,27 +27,26 @@ type updater func(mctx manipulate.Context, object elemental.Identifiable) error
 
 // vortexManipulator is a Vortex based on the memdb implementation.
 type vortexManipulator struct {
-	upstreamManipulator     manipulate.Manipulator
+	prefetcher              Prefetcher
 	upstreamSubscriber      manipulate.Subscriber
 	downstreamManipulator   manipulate.Manipulator
 	model                   elemental.ModelManager
-	processors              map[string]*Processor
+	downstreamReconciler    Reconciler
+	upstreamManipulator     manipulate.Manipulator
+	upstreamReconciler      Reconciler
 	commitIdentityEvent     map[string]struct{}
-	subscribers             []*vortexSubscriber
-	transactionQueue        chan *Transaction
-	enableLog               bool
-	logfile                 string
 	logChannel              chan *Transaction
+	transactionQueue        chan *Transaction
+	processors              map[string]*Processor
+	logfile                 string
 	defaultReadConsistency  manipulate.ReadConsistency
 	defaultWriteConsistency manipulate.WriteConsistency
+	subscribers             []*vortexSubscriber
 	defaultQueueDuration    time.Duration
 	pageSize                int
-	prefetcher              Prefetcher
-	upstreamReconciler      Reconciler
-	downstreamReconciler    Reconciler
-	disableUpstreamCommit   bool
-
 	sync.RWMutex
+	enableLog             bool
+	disableUpstreamCommit bool
 }
 
 // New will create a new cache. Caller must provide a valid
@@ -622,13 +621,13 @@ func (m *vortexManipulator) backgroundSync(ctx context.Context) {
 
 			if err := m.commitUpstream(retryCtx, t.Method, t.mctx, t.Object); err != nil {
 				m.RUnlock()
-				zap.L().Error("failed to commit object upstream", zap.Error(err))
+				slog.Error("failed to commit object upstream", err)
 				continue
 			}
 
 			// Update the local copy of the object now.
 			if err := m.commitLocal(t.Method, t.mctx, t.Object); err != nil {
-				zap.L().Error("failed to commit object downstream", zap.Error(err))
+				slog.Error("failed to commit object downstream", err)
 			}
 
 			m.RUnlock()
@@ -712,7 +711,7 @@ func (m *vortexManipulator) pushEvent(evt *elemental.Event) {
 			select {
 			case s.subscriberEventChannel <- evt.Duplicate():
 			default:
-				zap.L().Error("Subscriber event channel is full")
+				slog.Error("Subscriber event channel is full")
 			}
 		}
 	}
@@ -727,7 +726,7 @@ func (m *vortexManipulator) pushStatus(status manipulate.SubscriberStatus) {
 		select {
 		case s.subscriberStatusChannel <- status:
 		default:
-			zap.L().Error("Subscriber status channel is full", zap.Int("status", int(status)))
+			slog.Error("Subscriber status channel is full", "status", int(status))
 		}
 	}
 }
@@ -741,7 +740,7 @@ func (m *vortexManipulator) pushErrors(err error) {
 		select {
 		case s.subscriberErrorChannel <- err:
 		default:
-			zap.L().Error("Subscriber error channel is full", zap.Error(err))
+			slog.Error("Subscriber error channel is full", err)
 		}
 	}
 }
