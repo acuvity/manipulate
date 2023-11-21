@@ -33,12 +33,12 @@ import (
 	"github.com/gofrs/uuid"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
-	"go.aporeto.io/manipulate/internal/backoff"
-	"go.aporeto.io/manipulate/internal/idempotency"
-	"go.aporeto.io/manipulate/internal/snip"
-	"go.aporeto.io/manipulate/internal/tracing"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
+	"go.acuvity.ai/manipulate/internal/backoff"
+	"go.acuvity.ai/manipulate/internal/idempotency"
+	"go.acuvity.ai/manipulate/internal/snip"
+	"go.acuvity.ai/manipulate/internal/tracing"
 )
 
 const (

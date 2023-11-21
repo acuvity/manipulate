@@ -24,10 +24,10 @@ import (
 	"sync"
 	"time"
 
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
-	"go.aporeto.io/manipulate/maniphttp/internal/compiler"
-	"go.aporeto.io/manipulate/maniphttp/internal/syscall"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
+	"go.acuvity.ai/manipulate/maniphttp/internal/compiler"
+	"go.acuvity.ai/manipulate/maniphttp/internal/syscall"
 )
 
 // AddQueryParameters appends each key-value pair from ctx.Parameters

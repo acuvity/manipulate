@@ -14,7 +14,7 @@ package manipvortex
 import (
 	"time"
 
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/manipulate"
 )
 
 type config struct {

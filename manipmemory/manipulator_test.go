@@ -18,12 +18,12 @@ import (
 	"strconv"
 	"testing"
 
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 
 	memdb "github.com/hashicorp/go-memdb"
 	. "github.com/smartystreets/goconvey/convey"
-	testmodel "go.aporeto.io/elemental/test/model"
-	"go.aporeto.io/manipulate"
+	testmodel "go.acuvity.ai/elemental/test/model"
+	"go.acuvity.ai/manipulate"
 )
 
 func datastoreIndexConfig() map[string]*IdentitySchema {

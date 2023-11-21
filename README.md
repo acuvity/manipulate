@@ -5,7 +5,7 @@
 > Note: this readme is a work in progress
 
 Package manipulate provides everything needed to perform CRUD operations on an
-[elemental](https://go.aporeto.io/elemental) based data model.
+[elemental](https://go.acuvity.ai/elemental) based data model.
 
 The main interface is `Manipulator`. This interface provides various methods for
 creation, modification, retrieval and so on.

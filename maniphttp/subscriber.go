@@ -17,8 +17,8 @@ import (
 	"net/http"
 	"strings"
 
-	"go.aporeto.io/manipulate"
-	"go.aporeto.io/manipulate/internal/push"
+	"go.acuvity.ai/manipulate"
+	"go.acuvity.ai/manipulate/internal/push"
 )
 
 type subscribeConfig struct {

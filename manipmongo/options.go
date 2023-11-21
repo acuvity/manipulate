@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/globalsign/mgo/bson"
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 // An Option represents a maniphttp.Manipulator option.

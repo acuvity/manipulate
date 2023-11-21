@@ -16,7 +16,7 @@ import (
 	"sync"
 	"testing"
 
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/manipulate"
 )
 
 type mockedTokenManagerMethods struct {

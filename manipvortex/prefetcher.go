@@ -17,8 +17,8 @@ import (
 	"sync"
 	"testing"
 
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 // A Prefetcher is used to perform prefetching operations

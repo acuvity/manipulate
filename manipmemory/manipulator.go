@@ -21,8 +21,8 @@ import (
 	"github.com/globalsign/mgo/bson"
 	memdb "github.com/hashicorp/go-memdb"
 	"github.com/mitchellh/copystructure"
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 type txnRegistry map[manipulate.TransactionID]*memdb.Txn

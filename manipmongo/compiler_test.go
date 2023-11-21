@@ -19,8 +19,8 @@ import (
 	"github.com/globalsign/mgo/bson"
 	"github.com/golang/mock/gomock"
 	. "github.com/smartystreets/goconvey/convey"
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate/manipmongo/internal"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate/manipmongo/internal"
 )
 
 func TestCompilerOption(t *testing.T) {

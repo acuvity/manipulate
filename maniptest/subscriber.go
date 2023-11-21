@@ -16,8 +16,8 @@ import (
 	"sync"
 	"testing"
 
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 type mockedSubscriberMethods struct {

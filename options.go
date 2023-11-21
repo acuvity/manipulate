@@ -14,7 +14,7 @@ package manipulate
 import (
 	"net/url"
 
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 // ContextOption represents an option can can be passed to NewContext.

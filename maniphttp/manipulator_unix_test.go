@@ -24,7 +24,7 @@ import (
 	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
-	internalsyscall "go.aporeto.io/manipulate/maniphttp/internal/syscall"
+	internalsyscall "go.acuvity.ai/manipulate/maniphttp/internal/syscall"
 	"golang.org/x/sys/unix"
 )
 

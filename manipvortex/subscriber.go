@@ -16,8 +16,8 @@ import (
 	"fmt"
 	"sync"
 
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 // vortexSubscriber is the memdb vortex subscriber implementation.

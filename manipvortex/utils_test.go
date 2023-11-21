@@ -15,7 +15,7 @@ import (
 	"context"
 	"testing"
 
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/manipulate"
 )
 
 func Test_isStrongReadConsistency(t *testing.T) {

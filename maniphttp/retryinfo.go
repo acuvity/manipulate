@@ -12,7 +12,7 @@
 package maniphttp
 
 import (
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/manipulate"
 )
 
 // A RetryInfo contains information about a retry,

@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	memdb "github.com/hashicorp/go-memdb"
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 // stringBasedFieldIndex is used to extract a field from an object

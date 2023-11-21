@@ -15,7 +15,7 @@ import (
 	"context"
 
 	opentracing "github.com/opentracing/opentracing-go"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/manipulate"
 )
 
 // StartTrace starts a new trace from the root span if any.

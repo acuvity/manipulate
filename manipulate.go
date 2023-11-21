@@ -14,7 +14,7 @@ package manipulate
 import (
 	"context"
 
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 // Manipulator is the interface of a storage backend.

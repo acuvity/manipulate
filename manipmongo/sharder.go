@@ -13,8 +13,8 @@ package manipmongo
 
 import (
 	"github.com/globalsign/mgo/bson"
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 // A Sharder is the interface of an object that can be use

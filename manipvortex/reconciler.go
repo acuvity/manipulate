@@ -15,8 +15,8 @@ import (
 	"sync"
 	"testing"
 
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 // An Reconciler can be given to manipvortex to perform

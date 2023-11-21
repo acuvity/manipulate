@@ -13,4 +13,4 @@
 //
 // This is meant to be use to communicate with Bahamut based
 // API servers.
-package manipmemory // import "go.aporeto.io/manipulate/manipmemory"
+package manipmemory // import "go.acuvity.ai/manipulate/manipmemory"

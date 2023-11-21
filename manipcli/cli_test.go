@@ -7,7 +7,7 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	testmodel "go.aporeto.io/elemental/test/model"
+	testmodel "go.acuvity.ai/elemental/test/model"
 )
 
 func assertIdentityCommand(cmd *cobra.Command, expectedSubCommands []string) {

@@ -14,8 +14,8 @@ package manipvortex
 import (
 	"time"
 
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 // Transaction is the event that captures the transaction for later processing. It is

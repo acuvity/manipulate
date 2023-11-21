@@ -19,9 +19,9 @@ import (
 	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"go.aporeto.io/elemental"
-	testmodel "go.aporeto.io/elemental/test/model"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	testmodel "go.acuvity.ai/elemental/test/model"
+	"go.acuvity.ai/manipulate"
 )
 
 type testDataType struct {

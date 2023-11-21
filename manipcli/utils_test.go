@@ -14,11 +14,11 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.aporeto.io/elemental"
-	testmodel "go.aporeto.io/elemental/test/model"
-	"go.aporeto.io/manipulate"
-	"go.aporeto.io/manipulate/maniphttp"
-	"go.aporeto.io/manipulate/maniptest"
+	"go.acuvity.ai/elemental"
+	testmodel "go.acuvity.ai/elemental/test/model"
+	"go.acuvity.ai/manipulate"
+	"go.acuvity.ai/manipulate/maniphttp"
+	"go.acuvity.ai/manipulate/maniptest"
 )
 
 func Test_ManipulatorMakerFromFlags(t *testing.T) {

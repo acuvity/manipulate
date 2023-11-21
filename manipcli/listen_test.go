@@ -11,10 +11,10 @@ import (
 
 	"github.com/gorilla/websocket"
 	. "github.com/smartystreets/goconvey/convey"
-	"go.aporeto.io/elemental"
-	testmodel "go.aporeto.io/elemental/test/model"
-	"go.aporeto.io/manipulate"
-	"go.aporeto.io/manipulate/maniphttp"
+	"go.acuvity.ai/elemental"
+	testmodel "go.acuvity.ai/elemental/test/model"
+	"go.acuvity.ai/manipulate"
+	"go.acuvity.ai/manipulate/maniphttp"
 )
 
 func Test_generateListenCommand(t *testing.T) {

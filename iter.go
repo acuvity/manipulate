@@ -15,7 +15,7 @@ import (
 	"context"
 	"fmt"
 
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 const iterDefaultBlockSize = 1000

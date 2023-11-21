@@ -19,8 +19,8 @@ import (
 	"strings"
 	"time"
 
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 func decodeErrors(r io.Reader, encoding elemental.EncodingType) error {

@@ -15,11 +15,11 @@ import (
 	"context"
 	"testing"
 
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/manipulate"
 
 	. "github.com/smartystreets/goconvey/convey"
-	testmodel "go.aporeto.io/elemental/test/model"
-	"go.aporeto.io/manipulate/maniptest"
+	testmodel "go.acuvity.ai/elemental/test/model"
+	"go.acuvity.ai/manipulate/maniptest"
 )
 
 func Test_NewSubscriber(t *testing.T) {

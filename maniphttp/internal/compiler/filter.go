@@ -14,7 +14,7 @@ package compiler
 import (
 	"net/url"
 
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 // CompileFilter compiles the given filter into a http query filter.

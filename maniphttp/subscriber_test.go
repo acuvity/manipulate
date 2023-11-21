@@ -16,7 +16,7 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"go.aporeto.io/manipulate/maniptest"
+	"go.acuvity.ai/manipulate/maniptest"
 )
 
 func TestNewSubscriberOption(t *testing.T) {

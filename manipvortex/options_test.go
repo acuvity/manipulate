@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/manipulate"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"go.aporeto.io/manipulate/maniptest"
+	"go.acuvity.ai/manipulate/maniptest"
 )
 
 func Test_newOptions(t *testing.T) {

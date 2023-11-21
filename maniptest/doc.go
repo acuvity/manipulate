@@ -25,4 +25,4 @@
 // If you need to reset the mocked method in the context of the same test, simply do:
 //
 //	m.MockCreate(t, nil)
-package maniptest // import "go.aporeto.io/manipulate/maniptest"
+package maniptest // import "go.acuvity.ai/manipulate/maniptest"

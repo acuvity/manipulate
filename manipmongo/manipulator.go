@@ -21,10 +21,10 @@ import (
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	"github.com/opentracing/opentracing-go/log"
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
-	"go.aporeto.io/manipulate/internal/objectid"
-	"go.aporeto.io/manipulate/internal/tracing"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
+	"go.acuvity.ai/manipulate/internal/objectid"
+	"go.acuvity.ai/manipulate/internal/tracing"
 )
 
 const defaultGlobalContextTimeout = 60 * time.Second

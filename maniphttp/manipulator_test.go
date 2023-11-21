@@ -25,12 +25,12 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"golang.org/x/sync/errgroup"
 
-	"go.aporeto.io/elemental"
-	testmodel "go.aporeto.io/elemental/test/model"
-	"go.aporeto.io/manipulate"
-	"go.aporeto.io/manipulate/internal/idempotency"
-	"go.aporeto.io/manipulate/internal/tracing"
-	"go.aporeto.io/manipulate/maniptest"
+	"go.acuvity.ai/elemental"
+	testmodel "go.acuvity.ai/elemental/test/model"
+	"go.acuvity.ai/manipulate"
+	"go.acuvity.ai/manipulate/internal/idempotency"
+	"go.acuvity.ai/manipulate/internal/tracing"
+	"go.acuvity.ai/manipulate/maniptest"
 )
 
 // hangupListerner is a tcp listener that will close upon accept

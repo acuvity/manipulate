@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 func TestFilter_CompileFilter(t *testing.T) {

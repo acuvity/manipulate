@@ -16,8 +16,8 @@ import (
 	"net/http"
 	"time"
 
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 // An Option represents a maniphttp.Manipulator option.

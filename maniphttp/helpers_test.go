@@ -24,10 +24,10 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	"go.aporeto.io/elemental"
-	testmodel "go.aporeto.io/elemental/test/model"
-	"go.aporeto.io/manipulate"
-	"go.aporeto.io/manipulate/maniptest"
+	"go.acuvity.ai/elemental"
+	testmodel "go.acuvity.ai/elemental/test/model"
+	"go.acuvity.ai/manipulate"
+	"go.acuvity.ai/manipulate/maniptest"
 )
 
 func TestManiphttp_ExtractCredentials(t *testing.T) {

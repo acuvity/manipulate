@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 func Test_makeURL(t *testing.T) {

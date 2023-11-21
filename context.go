@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 // ReadConsistency represents the desired consistency of the request.

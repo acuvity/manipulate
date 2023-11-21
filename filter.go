@@ -14,7 +14,7 @@ package manipulate
 import (
 	"fmt"
 
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 // NewFiltersFromQueryParameters returns the filters matching any `q` parameters.

@@ -10,7 +10,7 @@
 // limitations under the License.
 
 // Package manipulate provides everything needed to perform CRUD operations
-// on an https://go.aporeto.io/elemental based data model.
+// on an https://go.acuvity.ai/elemental based data model.
 //
 // The main interface is Manipulator. This interface provides various
 // methods for creation, modification, retrieval and so on. TransactionalManipulator,
@@ -48,4 +48,4 @@
 //	// Retrieve the users matching the filter.
 //	var users models.UserLists
 //	m.RetrieveMany(ctx, models.UserIdentity, &users)
-package manipulate // import "go.aporeto.io/manipulate"
+package manipulate // import "go.acuvity.ai/manipulate"

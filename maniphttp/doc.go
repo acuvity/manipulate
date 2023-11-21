@@ -13,4 +13,4 @@
 //
 // This is meant to be use to communicate with Bahamut based
 // API servers.
-package maniphttp // import "go.aporeto.io/manipulate/maniphttp"
+package maniphttp // import "go.acuvity.ai/manipulate/maniphttp"

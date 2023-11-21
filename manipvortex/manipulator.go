@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 // updater is the type of all crud functions.

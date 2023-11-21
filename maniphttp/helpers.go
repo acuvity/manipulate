@@ -19,9 +19,9 @@ import (
 	"net/http"
 	"strings"
 
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
-	"go.aporeto.io/manipulate/internal/tracing"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
+	"go.acuvity.ai/manipulate/internal/tracing"
 )
 
 // ExtractCredentials extracts the username and password from the given manipulator.

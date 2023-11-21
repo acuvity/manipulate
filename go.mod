@@ -1,10 +1,10 @@
-module go.aporeto.io/manipulate
+module go.acuvity.ai/manipulate
 
 go 1.21
 
 require (
-	go.aporeto.io/elemental v1.123.1-0.20231116202419-3d09d6d39dcc
-	go.aporeto.io/wsc v1.51.0
+	go.acuvity.ai/elemental v1.123.1-0.20231116202419-3d09d6d39dcc
+	go.acuvity.ai/wsc v1.51.0
 )
 
 require (

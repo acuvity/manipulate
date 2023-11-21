@@ -12,8 +12,8 @@
 package manipmongo
 
 import (
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate"
 )
 
 // A RetryInfo contains information about a retry,

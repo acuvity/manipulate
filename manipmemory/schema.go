@@ -12,7 +12,7 @@
 package manipmemory
 
 import (
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 // IndexType is the data type of the index.

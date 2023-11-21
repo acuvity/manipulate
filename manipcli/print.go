@@ -12,7 +12,7 @@ import (
 	"github.com/ghodss/yaml"
 	prettyjson "github.com/hokaccha/go-prettyjson"
 	"github.com/olekukonko/tablewriter"
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 type prepareOutputConfig struct {

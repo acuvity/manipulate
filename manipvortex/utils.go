@@ -12,7 +12,7 @@
 package manipvortex
 
 import (
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/manipulate"
 )
 
 func isStrongReadConsistency(mctx manipulate.Context, processor *Processor, defaultConsistency manipulate.ReadConsistency) bool {

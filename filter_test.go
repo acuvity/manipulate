@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"go.aporeto.io/elemental"
+	"go.acuvity.ai/elemental"
 )
 
 func TestNewNamespaceFilter(t *testing.T) {

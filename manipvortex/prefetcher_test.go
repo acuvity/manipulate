@@ -16,9 +16,9 @@ import (
 	"fmt"
 	"testing"
 
-	"go.aporeto.io/elemental"
-	testmodel "go.aporeto.io/elemental/test/model"
-	"go.aporeto.io/manipulate"
+	"go.acuvity.ai/elemental"
+	testmodel "go.acuvity.ai/elemental/test/model"
+	"go.acuvity.ai/manipulate"
 
 	. "github.com/smartystreets/goconvey/convey"
 )

@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/globalsign/mgo/bson"
-	"go.aporeto.io/elemental"
-	"go.aporeto.io/manipulate/internal/objectid"
+	"go.acuvity.ai/elemental"
+	"go.acuvity.ai/manipulate/internal/objectid"
 )
 
 type compilerConfig struct {

@@ -11,4 +11,4 @@
 
 // Package manipvortex contains a Manipulator that can be used
 // as cache in front of another Manipulator.
-package manipvortex // import "go.aporeto.io/manipulate/manipvortex"
+package manipvortex // import "go.acuvity.ai/manipulate/manipvortex"

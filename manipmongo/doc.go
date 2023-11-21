@@ -10,4 +10,4 @@
 // limitations under the License.
 
 // Package manipmongo provides a MongoDB backed TransactionalManipulator.
-package manipmongo // import "go.aporeto.io/manipulate/manipmongo"
+package manipmongo // import "go.acuvity.ai/manipulate/manipmongo"
