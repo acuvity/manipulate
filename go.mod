@@ -3,11 +3,6 @@ module go.acuvity.ai/manipulate
 go 1.21
 
 require (
-	go.acuvity.ai/elemental v1.123.1-0.20231116202419-3d09d6d39dcc
-	go.acuvity.ai/wsc v1.51.0
-)
-
-require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/ghodss/yaml v1.0.0
@@ -24,6 +19,8 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
+	go.acuvity.ai/elemental v0.0.0-20231121185734-b906b9db4bde
+	go.acuvity.ai/wsc v0.0.0-20231121173228-eedea208383e
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.6.0
 	k8s.io/helm v2.17.0+incompatible
