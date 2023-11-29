@@ -47,31 +47,29 @@ const (
 )
 
 type httpManipulator struct {
-	username             string
-	password             string
-	url                  string
-	namespace            string
-	renewLock            sync.RWMutex
+	ctx                  context.Context
+	tokenManager         manipulate.TokenManager
 	renewNotifiers       map[string]func(string)
-	renewNotifiersLock   sync.RWMutex
-	disableAutoRetry     bool
-	disableCompression   bool
 	defaultRetryFunc     manipulate.RetryFunc
-	atomicRenewTokenFunc func(context.Context) error
+	tlsConfig            *tls.Config
 	failureSimulations   map[float64]error
+	transport            *http.Transport
+	globalHeaders        http.Header
+	atomicRenewTokenFunc func(context.Context) error
+	client               *http.Client
+	password             string
+	username             string
 	tokenCookieKey       string
+	namespace            string
+	encoding             elemental.EncodingType
+	url                  string
 	backoffCurve         []time.Duration
 	strongBackoffCurve   []time.Duration
-
-	// optionnable
-	ctx            context.Context
-	client         *http.Client
-	tlsConfig      *tls.Config
-	tokenManager   manipulate.TokenManager
-	globalHeaders  http.Header
-	transport      *http.Transport
-	encoding       elemental.EncodingType
-	tcpUserTimeout time.Duration
+	tcpUserTimeout       time.Duration
+	renewNotifiersLock   sync.RWMutex
+	renewLock            sync.RWMutex
+	disableCompression   bool
+	disableAutoRetry     bool
 }
 
 // New returns a maniphttp.Manipulator configured according to the given suite of Option.
@@ -779,8 +777,10 @@ func (s *httpManipulator) send(
 		// If we have some other errors, we decode them.
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
 			errs := elemental.NewErrors()
-			if err := decodeData(response, &errs); err != nil {
-				return nil, err
+			if method != http.MethodHead {
+				if err := decodeData(response, &errs); err != nil {
+					return nil, err
+				}
 			}
 
 			if !tokenRenewedOnce && s.tokenManager != nil && (response.StatusCode == http.StatusForbidden || response.StatusCode == http.StatusUnauthorized) {
@@ -799,6 +799,18 @@ func (s *httpManipulator) send(
 						goto RETRY
 					}
 				}
+			}
+
+			if method == http.MethodHead {
+				// If this is HEAD, there will be no body and no
+				// readable error, so we push one.
+				errs = errs.Append(elemental.NewError(
+					response.Status,
+					response.Status,
+					"maniphttp",
+					response.StatusCode,
+				))
+
 			}
 
 			return nil, errs
@@ -869,7 +881,6 @@ func (s *httpManipulator) send(
 
 		default:
 			// Otherwise we sleep backoff and we restart the retry loop.
-
 			time.Sleep(backoff.NextWithCurve(try, deadline, retryCurve))
 			try++
 		}
