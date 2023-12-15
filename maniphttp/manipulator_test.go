@@ -1854,7 +1854,7 @@ func TestHTTP_prepareHeaders(t *testing.T) {
 			context.Background(),
 			"http://fake.com",
 			OptionCredentials("username", "password"),
-			OptionNamespace("myns"),
+			OptionNamespace("/myns"),
 			OptionAdditonalHeaders(http.Header{
 				"Header-1": []string{"hey"},
 				"Header-2": []string{"ho"},
@@ -1871,7 +1871,7 @@ func TestHTTP_prepareHeaders(t *testing.T) {
 				m.prepareHeaders(req, manipulate.NewContext(context.Background()))
 
 				Convey("headers should be correct", func() {
-					So(req.Header.Get("X-Namespace"), ShouldEqual, "myns")
+					So(req.Header.Get("X-Namespace"), ShouldEqual, "/myns")
 					So(req.Header.Get("X-Count-Total"), ShouldEqual, "")
 					So(req.Header.Get("Header-1"), ShouldEqual, "hey")
 					So(req.Header.Get("Header-2"), ShouldEqual, "ho")
@@ -1883,6 +1883,7 @@ func TestHTTP_prepareHeaders(t *testing.T) {
 
 				ctx := manipulate.NewContext(
 					context.Background(),
+					manipulate.ContextOptionNamespace("/a/b/c"),
 					manipulate.ContextOptionTracking("tid", "type"),
 					manipulate.ContextOptionReadConsistency(manipulate.ReadConsistencyStrong),
 					manipulate.ContextOptionWriteConsistency(manipulate.WriteConsistencyStrong),
@@ -1896,6 +1897,7 @@ func TestHTTP_prepareHeaders(t *testing.T) {
 				m.prepareHeaders(req, ctx)
 
 				Convey("Then header should be correct", func() {
+					So(req.Header.Get("X-Namespace"), ShouldEqual, "/a/b/c")
 					So(req.Header.Get("X-External-Tracking-ID"), ShouldEqual, "tid")
 					So(req.Header.Get("X-External-Tracking-Type"), ShouldEqual, "type")
 					So(req.Header.Get("X-Read-Consistency"), ShouldEqual, "strong")
@@ -1905,6 +1907,20 @@ func TestHTTP_prepareHeaders(t *testing.T) {
 					So(req.Header.Get("Authorization"), ShouldResemble, "username password")
 					So(req.Header["X-Forwarded-For"], ShouldResemble, []string{"10.1.1.1"})
 					So(req.Header.Get("Content-Type"), ShouldEqual, "application/json")
+				})
+			})
+
+			Convey("When I prepareHeaders with relative namespace", func() {
+
+				ctx := manipulate.NewContext(
+					context.Background(),
+					manipulate.ContextOptionNamespace("./c"),
+				)
+
+				m.prepareHeaders(req, ctx)
+
+				Convey("Then header should be correct", func() {
+					So(req.Header.Get("X-Namespace"), ShouldEqual, "/myns/c")
 				})
 			})
 

@@ -447,6 +447,9 @@ func (s *httpManipulator) prepareHeaders(request *http.Request, mctx manipulate.
 	if ns == "" {
 		ns = s.namespace
 	}
+	if strings.HasPrefix(ns, "./") {
+		ns = s.namespace + strings.TrimPrefix(ns, ".")
+	}
 
 	for k, v := range s.globalHeaders {
 		request.Header[k] = v
