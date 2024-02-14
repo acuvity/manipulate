@@ -26,6 +26,8 @@ func generateListCommandForIdentity(identity elemental.Identity, modelManager el
 			fRecursive := viper.GetBool(flagRecursive)
 			fPage := viper.GetInt(flagPage)
 			fPageSize := viper.GetInt(flagPageSize)
+			fNext := viper.GetString(flagNext)
+			fLimit := viper.GetInt(flagLimit)
 			fOrder := viper.GetStringSlice(flagOrder)
 			fFilter := viper.GetString(flagFilter)
 			fOutput := viper.GetString(flagOutput)
@@ -58,6 +60,7 @@ func generateListCommandForIdentity(identity elemental.Identity, modelManager el
 				manipulate.ContextOptionFields(fFormatTypeColumn),
 				manipulate.ContextOptionRecursive(fRecursive),
 				manipulate.ContextOptionPage(fPage, fPageSize),
+				manipulate.ContextOptionAfter(fNext, fLimit),
 				manipulate.ContextOptionOrder(fOrder...),
 			}
 
@@ -114,6 +117,8 @@ func generateListCommandForIdentity(identity elemental.Identity, modelManager el
 	cmd.Flags().BoolP(flagRecursive, "r", false, "List all objects from the current namespace and all child namespaces.")
 	cmd.Flags().IntP(flagPageSize, "S", 0, "Page size to retrieve.")
 	cmd.Flags().IntP(flagPage, "P", 0, "Page number to retrieve.")
+	cmd.Flags().StringP(flagNext, "N", "", "Pages after next ID.")
+	cmd.Flags().IntP(flagLimit, "L", 100, "Pages number to retrieve after Next ID.")
 	cmd.Flags().StringP(flagFilter, "f", "", "Query filter.")
 	cmd.Flags().StringSliceP(flagOrder, "O", nil, "Ordering of the result.")
 	cmd.Flags().StringP(flagParent, "", "", "Provide information about parent resource. Format `name/ID`")
