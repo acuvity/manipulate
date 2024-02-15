@@ -50,6 +50,8 @@ const (
 const (
 	flagPageSize = "page-size"
 	flagPage     = "page"
+	flagLimit    = "limit"
+	flagNext     = "next"
 	flagFilter   = "filter"
 	flagOrder    = "order"
 )
