@@ -398,7 +398,10 @@ func (m *mongoManipulator) Create(mctx manipulate.Context, object elemental.Iden
 	c, closeFunc := m.makeSession(object.Identity(), mctx.ReadConsistency(), mctx.WriteConsistency())
 	defer closeFunc()
 
-	oid := bson.NewObjectId()
+	oid, ok := objectid.Parse(object.Identifier())
+	if !ok {
+		oid = bson.NewObjectId()
+	}
 	object.SetIdentifier(oid.Hex())
 
 	sp := tracing.StartTrace(mctx, fmt.Sprintf("manipmongo.create.object.%s", object.Identity().Name))
