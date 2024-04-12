@@ -130,7 +130,9 @@ func TestManiphttp_ExtractTLSConfig(t *testing.T) {
 
 	Convey("Given I have an httpmanipulator with namespace", t, func() {
 
-		tlsc := &tls.Config{}
+		tlsc := &tls.Config{
+			MinVersion: tls.VersionTLS13,
+		}
 		m := &httpManipulator{
 			tlsConfig: tlsc,
 		}

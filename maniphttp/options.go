@@ -98,7 +98,9 @@ func OptionTLSConfig(tlsConfig *tls.Config) Option {
 func OptionTLSClientCertificates(cert ...tls.Certificate) Option {
 	return func(m *httpManipulator) {
 		if m.tlsConfig == nil {
-			m.tlsConfig = &tls.Config{}
+			m.tlsConfig = &tls.Config{
+				MinVersion: tls.VersionTLS13,
+			}
 		}
 		m.tlsConfig.Certificates = cert
 	}

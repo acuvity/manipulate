@@ -78,6 +78,7 @@ func ManipulatorMakerFromFlags(options ...maniphttp.Option) ManipulatorMaker {
 
 		/* #nosec */
 		tlsConfig := &tls.Config{
+			MinVersion:         tls.VersionTLS13,
 			InsecureSkipVerify: skip,
 			RootCAs:            rootCAPool,
 		}

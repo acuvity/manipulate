@@ -74,6 +74,7 @@ func ExtractTLSConfig(manipulator manipulate.Manipulator) *tls.Config {
 	}
 
 	return &tls.Config{
+		MinVersion:         tls.VersionTLS13,
 		RootCAs:            m.tlsConfig.RootCAs,
 		Certificates:       m.tlsConfig.Certificates,
 		InsecureSkipVerify: m.tlsConfig.InsecureSkipVerify,

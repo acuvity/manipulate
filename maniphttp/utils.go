@@ -129,6 +129,7 @@ func getDefaultTLSConfig() *tls.Config {
 	}
 
 	return &tls.Config{
+		MinVersion:         tls.VersionTLS13,
 		RootCAs:            systemCertPool,
 		ClientSessionCache: tls.NewLRUClientSessionCache(0),
 	}
