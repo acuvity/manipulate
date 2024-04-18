@@ -571,6 +571,14 @@ func renderTemplate(content string, values any) ([]byte, error) {
 		return string(data), nil
 	}
 
+	funcs["toYaml"] = func(v interface{}) (string, error) {
+		data, err := yaml.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSuffix(string(data), "\n"), nil
+	}
+
 	tpl, err := template.New("template").Funcs(funcs).Parse(content)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse template: %s", err)
