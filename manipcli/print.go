@@ -15,6 +15,29 @@ import (
 	"go.acuvity.ai/elemental"
 )
 
+// PrintTable returns a table representation of the given identifiables.
+// If attributes are given, only these attributes will be shown as columns,
+func PrintTable(identifiables elemental.Identifiables, attributes ...string) (string, error) {
+	return formatObjects(outputFormat{output: flagOutputTable, columns: attributes}, false, identifiables.List()...)
+}
+
+// PrintYAML returns a yaml representation of the given identifiables.
+// If attributes are given, only these attributes will be shown as columns,
+func PrintYAML(identifiables elemental.Identifiables, attributes ...string) (string, error) {
+	return formatObjects(outputFormat{output: flagOutputYAML, columns: attributes}, false, identifiables.List()...)
+}
+
+// PrintJSON returns a json representation of the given identifiables.
+// If attributes are given, only these attributes will be shown as columns,
+func PrintJSON(identifiables elemental.Identifiables, attributes ...string) (string, error) {
+	return formatObjects(outputFormat{output: flagOutputJSON, columns: attributes}, false, identifiables.List()...)
+}
+
+// PrintTemplate returns a representation directed by the given template of the given identifiables.
+func PrintTemplate(identifiables elemental.Identifiables, template string) (string, error) {
+	return formatObjects(outputFormat{output: flagOutputTemplate, template: template}, false, identifiables.List()...)
+}
+
 type prepareOutputConfig struct {
 	tableCaption string
 }
