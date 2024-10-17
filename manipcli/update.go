@@ -58,7 +58,7 @@ func generateUpdateCommandForIdentity(identity elemental.Identity, modelManager 
 
 			mctx := manipulate.NewContext(retrieveCtx, options...)
 
-			identifiable, err := retrieveObjectByIDOrByName(mctx, manipulator, identity, args[0], modelManager)
+			identifiable, err := RetrieveObjectByIDOrByName(mctx, manipulator, identity, args[0], modelManager)
 			if err != nil {
 				return fmt.Errorf("unable to retrieve %s: %w", identity.Name, err)
 			}

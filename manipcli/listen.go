@@ -38,9 +38,6 @@ func generateListenCommand(modelManager elemental.ModelManager, manipulatorMaker
 				maniphttp.SubscriberOptionRecursive(fRecursive),
 				maniphttp.SubscriberOptionSupportErrorEvents(),
 			)
-			if err != nil {
-				return err
-			}
 
 			var filter *elemental.PushConfig
 			filterIdentities := viper.GetStringSlice("identity")

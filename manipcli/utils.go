@@ -113,8 +113,8 @@ func validateOutputParameters(output string) error {
 	return fmt.Errorf("invalid output %s", output)
 }
 
-// retrieveByIDOrByName retrieves an object from its id or name
-func retrieveObjectByIDOrByName(
+// RetrieveByIDOrByName retrieves an object from its id or name
+func RetrieveObjectByIDOrByName(
 	ctx manipulate.Context,
 	manipulator manipulate.Manipulator,
 	identity elemental.Identity,

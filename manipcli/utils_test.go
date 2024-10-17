@@ -160,7 +160,7 @@ func Test_retrieveObjectByIDOrByName(t *testing.T) {
 			defer cancel()
 			mctx := manipulate.NewContext(ctx)
 
-			identifiable, err := retrieveObjectByIDOrByName(
+			identifiable, err := RetrieveObjectByIDOrByName(
 				mctx,
 				m,
 				testmodel.TaskIdentity,
@@ -189,7 +189,7 @@ func Test_retrieveObjectByIDOrByName(t *testing.T) {
 				},
 			}
 
-			identifiable, err := retrieveObjectByIDOrByName(
+			identifiable, err := RetrieveObjectByIDOrByName(
 				mctx,
 				m,
 				testmodel.TaskIdentity,
@@ -211,7 +211,7 @@ func Test_retrieveObjectByIDOrByName(t *testing.T) {
 			defer cancel()
 			mctx := manipulate.NewContext(ctx)
 
-			_, err := retrieveObjectByIDOrByName(
+			_, err := RetrieveObjectByIDOrByName(
 				mctx,
 				m,
 				testmodel.TaskIdentity,
@@ -246,7 +246,7 @@ func Test_retrieveObjectByIDOrByName(t *testing.T) {
 			defer cancel()
 			mctx := manipulate.NewContext(ctx)
 
-			_, err := retrieveObjectByIDOrByName(
+			_, err := RetrieveObjectByIDOrByName(
 				mctx,
 				m,
 				testmodel.TaskIdentity,
@@ -266,7 +266,7 @@ func Test_retrieveObjectByIDOrByName(t *testing.T) {
 			defer cancel()
 			mctx := manipulate.NewContext(ctx)
 
-			_, err := retrieveObjectByIDOrByName(
+			_, err := RetrieveObjectByIDOrByName(
 				mctx,
 				m,
 				testmodel.TaskIdentity,
