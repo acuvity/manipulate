@@ -188,6 +188,10 @@ func readViperFlagsWithPrefix(specifiable elemental.AttributeSpecifiable, modelM
 
 	rv := reflect.ValueOf(specifiable).Elem()
 
+	if !rv.IsValid() {
+		return false, nil
+	}
+
 	for _, attrSpec := range specifiable.AttributeSpecifications() {
 
 		if !shouldManageAttribute(attrSpec) {
