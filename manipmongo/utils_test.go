@@ -26,7 +26,9 @@ import (
 	"github.com/golang/mock/gomock"
 	. "github.com/smartystreets/goconvey/convey"
 	"go.acuvity.ai/elemental"
+	testmodel "go.acuvity.ai/elemental/test/model"
 	"go.acuvity.ai/manipulate"
+	"go.acuvity.ai/manipulate/internal/objectid"
 	"go.acuvity.ai/manipulate/manipmongo/internal"
 )
 
@@ -220,6 +222,471 @@ func Test_HandleQueryError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_makeNamespaceFilter(t *testing.T) {
+
+	Convey("calling with no ns in mctx should work", t, func() {
+		mctx := manipulate.NewContext(context.Background())
+		f := makeNamespaceFilter(mctx)
+		So(f, ShouldBeNil)
+	})
+
+	Convey("calling with a ns in mctx should work", t, func() {
+		mctx := manipulate.NewContext(context.Background(),
+			manipulate.ContextOptionNamespace("/hello/world"),
+		)
+		f := makeNamespaceFilter(mctx)
+		So(f, ShouldNotBeNil)
+		So(f, ShouldResemble, bson.D{
+			bson.DocElem{
+				Name: "$and",
+				Value: []bson.D{
+					{
+						bson.DocElem{
+							Name: "namespace",
+							Value: bson.D{
+								bson.DocElem{
+									Name:  "$eq",
+									Value: "/hello/world",
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	})
+
+	Convey("calling with a ns and recursive in mctx should work", t, func() {
+		mctx := manipulate.NewContext(context.Background(),
+			manipulate.ContextOptionNamespace("/hello/world"),
+			manipulate.ContextOptionRecursive(true),
+		)
+		f := makeNamespaceFilter(mctx)
+		So(f, ShouldNotBeNil)
+		So(f, ShouldResemble, bson.D{
+			bson.DocElem{
+				Name: "$and",
+				Value: []bson.D{
+					{
+						bson.DocElem{
+							Name: "$or",
+							Value: []bson.D{
+								{
+									bson.DocElem{
+										Name: "$and",
+										Value: []bson.D{
+											{
+												bson.DocElem{
+													Name: "namespace",
+													Value: bson.D{
+														bson.DocElem{
+															Name:  "$eq",
+															Value: "/hello/world",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									bson.DocElem{
+										Name: "$and",
+										Value: []bson.D{
+											{
+												bson.DocElem{
+													Name: "$or",
+													Value: []bson.D{
+														{
+															bson.DocElem{
+																Name: "namespace",
+																Value: bson.D{
+																	bson.DocElem{
+																		Name:  "$regex",
+																		Value: "^/hello/world/",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	})
+
+	Convey("calling with a ns and recursive and propagated in mctx should work", t, func() {
+		mctx := manipulate.NewContext(context.Background(),
+			manipulate.ContextOptionNamespace("/hello/world"),
+			manipulate.ContextOptionRecursive(true),
+			manipulate.ContextOptionPropagated(true),
+		)
+		f := makeNamespaceFilter(mctx)
+		So(f, ShouldNotBeNil)
+		So(f, ShouldResemble,
+			bson.D{
+				bson.DocElem{
+					Name: "$and",
+					Value: []bson.D{
+						{
+							bson.DocElem{
+								Name: "$or",
+								Value: []bson.D{
+									{
+										bson.DocElem{
+											Name: "$and",
+											Value: []bson.D{
+												{
+													bson.DocElem{
+														Name: "$or",
+														Value: []bson.D{
+															{
+																bson.DocElem{
+																	Name: "$and",
+																	Value: []bson.D{
+																		{
+																			bson.DocElem{
+																				Name: "namespace",
+																				Value: bson.D{
+																					bson.DocElem{
+																						Name:  "$eq",
+																						Value: "/hello/world",
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+															{
+																bson.DocElem{
+																	Name: "$and",
+																	Value: []bson.D{
+																		{
+																			bson.DocElem{
+																				Name: "$or",
+																				Value: []bson.D{
+																					{
+																						bson.DocElem{
+																							Name: "namespace",
+																							Value: bson.D{
+																								bson.DocElem{
+																									Name:  "$regex",
+																									Value: "^/hello/world/",
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										bson.DocElem{
+											Name: "$and",
+											Value: []bson.D{
+												{
+													bson.DocElem{
+														Name: "$or",
+														Value: []bson.D{
+															{
+																bson.DocElem{
+																	Name: "$and",
+																	Value: []bson.D{
+																		{
+																			bson.DocElem{
+																				Name:  "namespace",
+																				Value: bson.D{bson.DocElem{Name: "$eq", Value: "/hello"}},
+																			},
+																		},
+																		{
+																			bson.DocElem{
+																				Name:  "propagate",
+																				Value: bson.M{"$eq": true},
+																			},
+																		},
+																	},
+																},
+															},
+															{
+																bson.DocElem{
+																	Name: "$and",
+																	Value: []bson.D{
+																		{
+																			bson.DocElem{
+																				Name:  "namespace",
+																				Value: bson.D{bson.DocElem{Name: "$eq", Value: "/"}},
+																			},
+																		},
+																		{
+																			bson.DocElem{
+																				Name:  "propagate",
+																				Value: bson.M{"$eq": true},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		)
+	})
+}
+
+func Test_makeUserFilter(t *testing.T) {
+
+	Convey("making user filter with no filter should work", t, func() {
+
+		attrSpec := testmodel.NewList()
+		mctx := manipulate.NewContext(context.Background())
+		f := makeUserFilter(mctx, attrSpec)
+		So(f, ShouldBeNil)
+	})
+
+	Convey("making user filter with filter should work", t, func() {
+
+		attrSpec := testmodel.NewList()
+		mctx := manipulate.NewContext(context.Background(),
+			manipulate.ContextOptionFilter(
+				elemental.NewFilterComposer().WithKey("name").Equals("the-name").Done(),
+			),
+		)
+		f := makeUserFilter(mctx, attrSpec)
+		So(f, ShouldNotBeNil)
+		So(f, ShouldResemble,
+			bson.D{
+				bson.DocElem{
+					Name: "$and",
+					Value: []bson.D{
+						{
+							bson.DocElem{
+								Name: "name",
+								Value: bson.D{
+									bson.DocElem{
+										Name:  "$eq",
+										Value: "the-name",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		)
+	})
+}
+
+func Test_makePipeline(t *testing.T) {
+
+	Convey("calling make pipeline with everything empty should work", t, func() {
+
+		attrSpec := testmodel.NewList()
+		r := func(id bson.ObjectId) (bson.M, error) { return nil, nil }
+
+		pipe, err := makePipeline(attrSpec, r, nil, nil, nil, nil, nil, "", 0, nil)
+		So(err, ShouldBeNil)
+		So(pipe, ShouldResemble, []bson.M{})
+	})
+
+	Convey("calling make pipeline with everything ok should work", t, func() {
+
+		attrSpec := testmodel.NewList()
+		r := func(id bson.ObjectId) (bson.M, error) {
+			return bson.M{"name": "bob", "age": 245}, nil
+		}
+
+		id, _ := objectid.Parse("673f8580686b0ea7a1241fee")
+
+		pipe, err := makePipeline(
+			attrSpec,
+			r,
+			bson.D{bson.DocElem{Name: "shard", Value: "good"}},
+			bson.D{bson.DocElem{Name: "namespace", Value: "good"}},
+			bson.D{bson.DocElem{Name: "forced", Value: "good"}},
+			bson.D{bson.DocElem{Name: "user", Value: "good"}},
+			[]string{"name", "-age"},
+			"673f8580686b0ea7a1241fee",
+			2,
+			[]string{"a", "b"},
+		)
+		So(err, ShouldBeNil)
+		So(pipe, ShouldResemble,
+			[]bson.M{
+				{"$match": bson.D{
+					bson.DocElem{Name: "shard", Value: "good"},
+				}},
+				{"$match": bson.D{
+					bson.DocElem{Name: "namespace", Value: "good"},
+				}},
+				{"$match": bson.D{
+					bson.DocElem{Name: "forced", Value: "good"},
+				}},
+				{"$sort": bson.D{
+					bson.DocElem{Name: "name", Value: 1},
+					bson.DocElem{Name: "age", Value: -1},
+					bson.DocElem{Name: "_id", Value: 1},
+				}},
+				{"$match": bson.M{
+					"$and": []bson.M{
+						{
+							"$or": []interface{}{
+								bson.M{"name": bson.M{"$gt": "bob"}},
+								bson.M{"_id": bson.M{"$gt": id}, "name": "bob"},
+							},
+						},
+						{
+							"$or": []interface{}{
+								bson.M{"age": bson.M{"$lt": 245}},
+								bson.M{"_id": bson.M{"$gt": id}, "age": 245},
+							},
+						},
+					},
+				}},
+				{"$match": bson.D{
+					bson.DocElem{Name: "user", Value: "good"},
+				}},
+				{"$limit": 2},
+				{"$project": bson.M{"a": 1, "b": 1}},
+			},
+		)
+	})
+
+	Convey("calling make pipeline with after and no order ok should work", t, func() {
+
+		attrSpec := testmodel.NewList()
+		r := func(id bson.ObjectId) (bson.M, error) {
+			return bson.M{"name": "bob", "age": 245}, nil
+		}
+
+		id, _ := objectid.Parse("673f8580686b0ea7a1241fee")
+
+		pipe, err := makePipeline(
+			attrSpec,
+			r,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			"673f8580686b0ea7a1241fee",
+			2,
+			nil,
+		)
+		So(err, ShouldBeNil)
+		So(pipe, ShouldResemble,
+			[]bson.M{
+				{"$sort": bson.D{
+					bson.DocElem{Name: "_id", Value: 1},
+				}},
+				{"$match": bson.M{
+					"$and": []bson.M{
+						{"_id": bson.M{"$gt": id}},
+					},
+				}},
+				{"$limit": 2},
+			},
+		)
+	})
+
+	Convey("calling make pipeline with bad after format work", t, func() {
+
+		attrSpec := testmodel.NewList()
+		r := func(id bson.ObjectId) (bson.M, error) {
+			return bson.M{"name": "bob", "age": 245}, nil
+		}
+
+		pipe, err := makePipeline(
+			attrSpec,
+			r,
+			bson.D{bson.DocElem{Name: "shard", Value: "good"}},
+			bson.D{bson.DocElem{Name: "namespace", Value: "good"}},
+			bson.D{bson.DocElem{Name: "forced", Value: "good"}},
+			bson.D{bson.DocElem{Name: "user", Value: "good"}},
+			[]string{"name", "-age"},
+			"oh-no",
+			2,
+			[]string{"a", "b"},
+		)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldEqual, "Unable to execute query: after 'oh-no' is not parsable objectId")
+		So(pipe, ShouldBeNil)
+	})
+
+	Convey("calling make pipeline with retriever returning an error format work", t, func() {
+
+		attrSpec := testmodel.NewList()
+		r := func(id bson.ObjectId) (bson.M, error) {
+			return nil, fmt.Errorf("oh noes")
+		}
+
+		pipe, err := makePipeline(
+			attrSpec,
+			r,
+			bson.D{bson.DocElem{Name: "shard", Value: "good"}},
+			bson.D{bson.DocElem{Name: "namespace", Value: "good"}},
+			bson.D{bson.DocElem{Name: "forced", Value: "good"}},
+			bson.D{bson.DocElem{Name: "user", Value: "good"}},
+			[]string{"name", "-age"},
+			"673f8580686b0ea7a1241fee",
+			2,
+			[]string{"a", "b"},
+		)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldEqual, "Unable to execute query: unable to retrieve previous object with after id '673f8580686b0ea7a1241fee': oh noes")
+		So(pipe, ShouldBeNil)
+	})
+
+	Convey("calling make pipeline with retriever returning a nil previous work", t, func() {
+
+		attrSpec := testmodel.NewList()
+		r := func(id bson.ObjectId) (bson.M, error) {
+			return nil, nil
+		}
+
+		pipe, err := makePipeline(
+			attrSpec,
+			r,
+			bson.D{bson.DocElem{Name: "shard", Value: "good"}},
+			bson.D{bson.DocElem{Name: "namespace", Value: "good"}},
+			bson.D{bson.DocElem{Name: "forced", Value: "good"}},
+			bson.D{bson.DocElem{Name: "user", Value: "good"}},
+			[]string{"name", "-age"},
+			"673f8580686b0ea7a1241fee",
+			2,
+			[]string{"a", "b"},
+		)
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldEqual, "Unable to execute query: unable to retrieve previous object with after id '673f8580686b0ea7a1241fee': not found")
+		So(pipe, ShouldBeNil)
+	})
+
 }
 
 func Test_makeFieldsSelector(t *testing.T) {

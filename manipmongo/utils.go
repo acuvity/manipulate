@@ -22,6 +22,8 @@ import (
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	"go.acuvity.ai/elemental"
 	"go.acuvity.ai/manipulate"
 	"go.acuvity.ai/manipulate/internal/objectid"
@@ -69,51 +71,208 @@ func applyOrdering(order []string, spec elemental.AttributeSpecifiable) []string
 	return o
 }
 
-func prepareNextFilter(collection *mgo.Collection, orderingField string, next string) (bson.D, error) {
+func makePreviousRetriever(c *mgo.Collection) func(id bson.ObjectId) (bson.M, error) {
 
-	var id any
-	if oid, ok := objectid.Parse(next); ok {
-		id = oid
-	} else {
-		id = next
+	return func(id bson.ObjectId) (bson.M, error) {
+		doc := bson.M{}
+		if err := c.FindId(id).One(&doc); err != nil {
+			return nil, err
+		}
+		return doc, nil
+	}
+}
+
+func makeShardingManyFilter(m *mongoManipulator, mctx manipulate.Context, identity elemental.Identity) (bson.D, error) {
+
+	if m.sharder == nil {
+		return nil, nil
 	}
 
-	if orderingField == "" {
-		return bson.D{
-			{
-				Name: "_id",
-				Value: bson.D{
-					{
-						Name:  "$gt",
-						Value: id,
-					},
-				},
-			},
-		}, nil
+	sq, err := m.sharder.FilterMany(m, mctx, identity)
+	if err != nil {
+		return nil, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("cannot compute sharding filter: %w", err)}
 	}
 
-	comp := "$gt"
-	if strings.HasPrefix(orderingField, "-") {
-		orderingField = strings.TrimPrefix(orderingField, "-")
-		comp = "$lt"
+	return sq, nil
+}
+
+func makeShardingOneFilter(m *mongoManipulator, mctx manipulate.Context, object elemental.Identifiable) (bson.D, error) {
+
+	if m.sharder == nil {
+		return nil, nil
 	}
 
-	doc := bson.M{}
-	if err := collection.FindId(id).Select(bson.M{orderingField: 1}).One(&doc); err != nil {
-		return nil, HandleQueryError(err)
+	sq, err := m.sharder.FilterOne(m, mctx, object)
+	if err != nil {
+		return nil, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("cannot compute sharding filter: %w", err)}
 	}
 
-	return bson.D{
-		{
-			Name: orderingField,
-			Value: bson.D{
-				{
-					Name:  comp,
-					Value: doc[orderingField],
-				},
-			},
-		},
-	}, nil
+	return sq, nil
+}
+
+func makeNamespaceFilter(mctx manipulate.Context) bson.D {
+
+	if mctx.Namespace() == "" {
+		return nil
+	}
+
+	f := manipulate.NewNamespaceFilter(mctx.Namespace(), mctx.Recursive())
+	if mctx.Propagated() {
+		if fp := manipulate.NewPropagationFilter(mctx.Namespace()); fp != nil {
+			f = elemental.NewFilterComposer().Or(f, fp).Done()
+		}
+	}
+
+	return CompileFilter(f)
+}
+
+func makeUserFilter(mctx manipulate.Context, attrSpec elemental.AttributeSpecifiable) bson.D {
+
+	f := mctx.Filter()
+
+	if f == nil {
+		return nil
+	}
+
+	var opts []CompilerOption
+	if attrSpec != nil {
+		opts = append(opts, CompilerOptionTranslateKeysFromSpec(attrSpec))
+	}
+
+	return CompileFilter(f, opts...)
+}
+
+func makePipeline(
+	attrSpec elemental.AttributeSpecifiable,
+	retriever func(id bson.ObjectId) (bson.M, error),
+	shardFilter bson.D,
+	namespaceFiler bson.D,
+	forcedReadFilter bson.D,
+	userFilter bson.D,
+	order []string,
+	after string,
+	limit int,
+	fields []string,
+) ([]bson.M, error) {
+
+	pipe := []bson.M{}
+
+	// Add sharding match
+	if shardFilter != nil {
+		pipe = append(pipe, bson.M{"$match": shardFilter})
+	}
+
+	// Add namespace match
+	if namespaceFiler != nil {
+		pipe = append(pipe, bson.M{"$match": namespaceFiler})
+	}
+
+	// Add forced match
+	if forcedReadFilter != nil {
+		pipe = append(pipe, bson.M{"$match": forcedReadFilter})
+	}
+
+	// Ordering
+	if len(order) == 0 && after != "" {
+		order = []string{"_id"}
+	}
+
+	if len(order) > 0 {
+
+		var id bson.ObjectId
+		doc := bson.M{}
+		match := []bson.M{}
+		sort := bson.D{}
+		hasID := false
+
+		// If we have an after, we get the previous object info
+		if after != "" {
+
+			if oid, ok := objectid.Parse(after); ok {
+				id = oid
+			} else {
+				return nil, HandleQueryError(fmt.Errorf("after '%s' is not parsable objectId", after))
+			}
+
+			var err error
+			if doc, err = retriever(id); err != nil {
+				return nil, HandleQueryError(fmt.Errorf("unable to retrieve previous object with after id '%s': %w", after, err))
+			}
+
+			if doc == nil {
+				return nil, HandleQueryError(fmt.Errorf("unable to retrieve previous object with after id '%s': not found", after))
+			}
+		}
+
+		// Now we range over the order fields.
+		for _, f := range order {
+
+			cmp, op := 1, "$gt"
+			if strings.HasPrefix(f, "-") {
+				cmp, op, f = -1, "$lt", strings.TrimPrefix(f, "-")
+			}
+
+			hasID = hasID || f == "_id"
+
+			sort = append(sort, bson.DocElem{Name: f, Value: cmp})
+
+			if after != "" {
+				if f == "_id" {
+					match = append(match,
+						bson.M{"_id": bson.M{"$gt": id}},
+					)
+				} else {
+					match = append(match,
+						bson.M{
+							"$or": []any{
+								bson.M{f: bson.M{op: doc[f]}},
+								bson.M{f: doc[f], "_id": bson.M{"$gt": id}},
+							},
+						},
+					)
+				}
+			}
+		}
+
+		if !hasID {
+			sort = append(sort, bson.DocElem{Name: "_id", Value: 1})
+		}
+
+		pipe = append(pipe, bson.M{"$sort": sort})
+
+		if after != "" {
+			pipe = append(pipe, bson.M{
+				"$match": bson.M{"$and": match},
+			})
+		}
+	}
+
+	// User filtering
+	if userFilter != nil {
+		pipe = append(pipe, bson.M{"$match": userFilter})
+	}
+
+	// Limiting
+	if limit > 0 {
+		pipe = append(pipe, bson.M{"$limit": limit})
+	}
+
+	// Fields
+	if sels := makeFieldsSelector(fields, attrSpec); sels != nil {
+		pipe = append(pipe, bson.M{"$project": sels})
+	}
+
+	return pipe, nil
+}
+
+func spanErr(sp opentracing.Span, err error) error {
+
+	if sp != nil {
+		sp.SetTag("error", true)
+		sp.LogFields(log.Error(err))
+	}
+
+	return err
 }
 
 // HandleQueryError handles the provided upstream error returned by Mongo by returning a corresponding manipulate error type.
@@ -327,8 +486,12 @@ func convertWriteConsistency(c manipulate.WriteConsistency) *mgo.Safe {
 	}
 }
 
-func explainIfNeeded(
-	query *mgo.Query,
+type explainable interface {
+	Explain(result interface{}) error
+}
+
+func explainIfNeeded[T explainable](
+	query T,
 	filter bson.D,
 	identity elemental.Identity,
 	operation elemental.Operation,
@@ -355,7 +518,7 @@ func explainIfNeeded(
 	return nil
 }
 
-func explain(query *mgo.Query, operation elemental.Operation, identity elemental.Identity, filter bson.D) error {
+func explain[T explainable](query T, operation elemental.Operation, identity elemental.Identity, filter bson.D) error {
 
 	r := bson.M{}
 	if err := query.Explain(&r); err != nil {
@@ -389,7 +552,11 @@ func explain(query *mgo.Query, operation elemental.Operation, identity elemental
 	return nil
 }
 
-func setMaxTime(ctx context.Context, q *mgo.Query) (*mgo.Query, error) {
+type maxable[T any] interface {
+	SetMaxTime(d time.Duration) T
+}
+
+func setMaxTime[T maxable[T]](ctx context.Context, q T) (T, error) {
 
 	d, ok := ctx.Deadline()
 	if !ok {
@@ -398,7 +565,8 @@ func setMaxTime(ctx context.Context, q *mgo.Query) (*mgo.Query, error) {
 
 	mx := time.Until(d)
 	if err := ctx.Err(); err != nil {
-		return nil, manipulate.ErrCannotBuildQuery{Err: err}
+		var zero T
+		return zero, manipulate.ErrCannotBuildQuery{Err: err}
 	}
 
 	return q.SetMaxTime(mx), nil
