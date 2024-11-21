@@ -118,7 +118,7 @@ func generateListCommandForIdentity(identity elemental.Identity, modelManager el
 	cmd.Flags().IntP(flagPageSize, "S", 0, "Page size to retrieve.")
 	cmd.Flags().IntP(flagPage, "P", 0, "Page number to retrieve.")
 	cmd.Flags().StringP(flagNext, "N", "", "Pages after next ID.")
-	cmd.Flags().IntP(flagLimit, "L", 100, "Pages number to retrieve after Next ID.")
+	cmd.Flags().IntP(flagLimit, "L", 0, "Pages number to retrieve after Next ID.")
 	cmd.Flags().StringP(flagFilter, "f", "", "Query filter.")
 	cmd.Flags().StringSliceP(flagOrder, "O", nil, "Ordering of the result.")
 	cmd.Flags().StringP(flagParent, "", "", "Provide information about parent resource. Format `name/ID`")
