@@ -701,13 +701,13 @@ func (s *httpManipulator) send(
 
 			case context.DeadlineExceeded:
 				if lastError == nil {
-					lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf(snip.Snip(err, s.currentPassword()).Error())}
+					lastError = manipulate.ErrCannotCommunicate{Err: snip.Snip(err, s.currentPassword())}
 				}
 				goto RETRY
 
 			case io.ErrUnexpectedEOF, io.EOF:
 				if lastError == nil {
-					lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf(snip.Snip(err, s.currentPassword()).Error())}
+					lastError = manipulate.ErrCannotCommunicate{Err: snip.Snip(err, s.currentPassword())}
 				}
 				goto RETRY
 			}
@@ -718,7 +718,7 @@ func (s *httpManipulator) send(
 			case net.Error:
 
 				if lastError == nil {
-					lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf(snip.Snip(err, s.currentPassword()).Error())}
+					lastError = manipulate.ErrCannotCommunicate{Err: snip.Snip(err, s.currentPassword())}
 				}
 
 				// check if the connection has been reset by the gateway

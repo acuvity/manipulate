@@ -84,7 +84,7 @@ func generateListenCommand(modelManager elemental.ModelManager, manipulatorMaker
 							slog.Error("unable to format event", err)
 						}
 
-						fmt.Fprint(cmd.OutOrStdout(), result)
+						_, _ = fmt.Fprint(cmd.OutOrStdout(), result)
 
 					case st := <-subscriber.Status():
 						switch st {

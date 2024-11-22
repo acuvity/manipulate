@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -113,7 +114,7 @@ func validateOutputParameters(output string) error {
 	return fmt.Errorf("invalid output %s", output)
 }
 
-// RetrieveByIDOrByName retrieves an object from its id or name
+// RetrieveObjectByIDOrByName retrieves an object from its id or name
 func RetrieveObjectByIDOrByName(
 	ctx manipulate.Context,
 	manipulator manipulate.Manipulator,
@@ -559,10 +560,10 @@ func renderTemplate(content string, values any) ([]byte, error) {
 	funcs := sprig.TxtFuncMap()
 	funcs["required"] = func(warn string, val any) (any, error) {
 		if val == nil {
-			return val, fmt.Errorf(warn)
+			return val, errors.New(warn)
 		} else if _, ok := val.(string); ok {
 			if val == "" {
-				return val, fmt.Errorf(warn)
+				return val, errors.New(warn)
 			}
 		}
 		return val, nil
