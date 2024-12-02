@@ -152,9 +152,19 @@ func (m *mongoManipulator) RetrieveMany(mctx manipulate.Context, dest elemental.
 	p := c.Pipe(pipe)
 
 	// Query timing limiting
-	if p, err = setMaxTime(mctx.Context(), p); err != nil {
-		return spanErr(sp, err)
-	}
+	//
+	// This is causing trouble in some request.
+	// It seems MaxTimeMS can only be used on tailable cursor
+	// whatever that means, but mgo does not handle that correctly
+	// and always sets it. For now we should be fine.
+	//
+	// https://www.mongodb.com/docs/v6.1/reference/command/getMore/
+	//
+	// Error: cannot set maxTimeMS on getMore command for a non-awaitData cursor
+	//
+	// if p, err = setMaxTime(mctx.Context(), p); err != nil {
+	// 	return spanErr(sp, err)
+	// }
 
 	if _, err := RunQuery(
 		mctx,
