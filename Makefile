@@ -8,6 +8,7 @@ default: lint test
 lint:
 	# --enable=unparam
 	golangci-lint run \
+		--timeout=5m \
 		--disable-all \
 		--exclude-use-default=false \
 		--exclude=package-comments \

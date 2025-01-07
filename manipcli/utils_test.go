@@ -647,6 +647,7 @@ func Test_generateFileData(t *testing.T) {
 
 description: ""
 name: ""
+secret: ""
 status: TODO
 
 # Here is a copy of the full original object you are editing:
@@ -655,7 +656,8 @@ status: TODO
 # description: ""
 # name: ""
 # parentID: ""
-# parentType: ""`)
+# parentType: ""
+# secret: ""`)
 			})
 		})
 	})

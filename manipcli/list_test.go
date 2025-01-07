@@ -56,6 +56,7 @@ func Test_generateListCommandForIdentity(t *testing.T) {
     "name": "task1",
     "parentID": "",
     "parentType": "",
+    "secret": "",
     "status": "TODO"
   },
   {
@@ -64,6 +65,7 @@ func Test_generateListCommandForIdentity(t *testing.T) {
     "name": "task2",
     "parentID": "",
     "parentType": "",
+    "secret": "",
     "status": "TODO"
   }
 ]`)
@@ -85,6 +87,7 @@ func Test_generateListCommandForIdentity(t *testing.T) {
     "name": "task1",
     "parentID": "",
     "parentType": "",
+    "secret": "",
     "status": "TODO"
   },
   {
@@ -93,6 +96,7 @@ func Test_generateListCommandForIdentity(t *testing.T) {
     "name": "task2",
     "parentID": "",
     "parentType": "",
+    "secret": "",
     "status": "TODO"
   }
 ]`)

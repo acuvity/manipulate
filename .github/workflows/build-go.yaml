@@ -11,6 +11,9 @@ defaults:
 
 env:
   GO111MODULE: on
+  GOPRIVATE: github.com/acuvity,go.acuvity.ai
+  GOPROXY: https://proxy.golang.org,direct
+  GOTOKEN: ${{ secrets.GO_PRIVATE_REPO_PAT }}
 
 jobs:
   build:
@@ -20,11 +23,10 @@ jobs:
       matrix:
         go:
           - "1.21"
-
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
           cache: true
@@ -34,15 +36,11 @@ jobs:
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
       - name: build
-        env:
-          GOPRIVATE: github.com/acuvity,go.acuvity.ai
-          GOPROXY: https://proxy.golang.org,direct
-          GOTOKEN: ${{ secrets.GO_PRIVATE_REPO_PAT }}
         run: |
           git config --global url."https://acuvity:${GOTOKEN}@github.com/acuvity".insteadOf "https://github.com/acuvity"
           make
 
-      - uses: PaloAltoNetworks/cov@3.0.0
+      - uses: acuvity/cov@1.0.2
         with:
           main_branch: master
           cov_file: unit_coverage.out
