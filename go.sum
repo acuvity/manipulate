@@ -323,10 +323,10 @@ github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9de
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
-go.acuvity.ai/elemental v0.0.0-20250107105005-5ef9dd7dc04c h1:1a1udsp8eIhmBexegouwLgJM31+36i6j+ePu2wadHo0=
-go.acuvity.ai/elemental v0.0.0-20250107105005-5ef9dd7dc04c/go.mod h1:1u9N35wrEkLDuzur7NM2+D8qQPKTf93agy5hVB3aLZ4=
-go.acuvity.ai/regolithe v0.0.0-20250106214126-64eb127ba6fe h1:DM7eb0eMXBeajeNqWVT/5uIoHPutjzNt7WReFG34jqQ=
-go.acuvity.ai/regolithe v0.0.0-20250106214126-64eb127ba6fe/go.mod h1:p1J61STb/fgaK+Yffp1sdtHFAmZVTigfc5wXu2jiQz8=
+go.acuvity.ai/elemental v0.0.0-20250114154951-59db3af44e2c h1:Xa2ZIWGLb3iSJHwElrRjiMnMXJf3xuxBL4y7Y17uzr4=
+go.acuvity.ai/elemental v0.0.0-20250114154951-59db3af44e2c/go.mod h1:lkUaGXuagmPQ0jO/LR1tRKOnOqFDX+tQkfn1Ya75hpI=
+go.acuvity.ai/regolithe v0.0.0-20250114154847-efb27183b9b1 h1:G5n94hP6ZCKtavpJV+PHFP4oZtLmVhcAvCchdEIlOqA=
+go.acuvity.ai/regolithe v0.0.0-20250114154847-efb27183b9b1/go.mod h1:p1J61STb/fgaK+Yffp1sdtHFAmZVTigfc5wXu2jiQz8=
 go.acuvity.ai/wsc v0.0.0-20250107185701-b84376bdb60b h1:tr6BJlzJp892jno2txTJQyhwYzyPk4qP2pfwihrghmg=
 go.acuvity.ai/wsc v0.0.0-20250107185701-b84376bdb60b/go.mod h1:Yu1kIqo/df5DRqlPeOF3dgc+Ij8bBXjYzJX0a5ueZi8=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
