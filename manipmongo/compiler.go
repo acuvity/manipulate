@@ -129,7 +129,21 @@ func CompileFilter(f *elemental.Filter, opts ...CompilerOption) bson.D {
 			case elemental.MatchComparator:
 				dest := []bson.D{}
 				for _, v := range f.Values()[i] {
+
+					if s, ok := v.(string); ok && strings.HasPrefix(s, "/") && (strings.HasSuffix(s, "/") || strings.HasSuffix(s, "/i")) {
+						s = strings.TrimPrefix(s, "/")
+						s = strings.TrimSuffix(s, "/")
+
+						if strings.HasSuffix(s, "/i") {
+							s = strings.TrimSuffix(s, "/i")
+							dest = append(dest, bson.D{{Name: k, Value: bson.D{{Name: "$regex", Value: s}, {Name: "$options", Value: "i"}}}})
+							continue
+						}
+						v = s
+					}
+
 					dest = append(dest, bson.D{{Name: k, Value: bson.D{{Name: "$regex", Value: v}}}})
+
 				}
 				items = append(items, bson.D{{Name: "$or", Value: dest}})
 			}
