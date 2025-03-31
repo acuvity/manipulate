@@ -438,6 +438,66 @@ func TestUtils_compiler(t *testing.T) {
 		})
 	})
 
+	Convey("Given I have filter that slashes for matching expression", t, func() {
+
+		f := elemental.NewFilterComposer().
+			WithKey("x").Matches("/abc/i", ".*").
+			Done()
+
+		Convey("When I compile the filter", func() {
+			b, _ := bson.MarshalJSON(toMap(CompileFilter(f)))
+
+			Convey("Then the bson should be correct", func() {
+				So(strings.Replace(string(b), "\n", "", 1), ShouldEqual, `{"$and":[{"$or":[{"x":{"$options":"i","$regex":"abc"}},{"x":{"$regex":".*"}}]}]}`)
+			})
+		})
+	})
+
+	Convey("Given I have filter that slashes for matching expression without case insensitive", t, func() {
+
+		f := elemental.NewFilterComposer().
+			WithKey("x").Matches("/abc/", ".*").
+			Done()
+
+		Convey("When I compile the filter", func() {
+			b, _ := bson.MarshalJSON(toMap(CompileFilter(f)))
+
+			Convey("Then the bson should be correct", func() {
+				So(strings.Replace(string(b), "\n", "", 1), ShouldEqual, `{"$and":[{"$or":[{"x":{"$regex":"abc"}},{"x":{"$regex":".*"}}]}]}`)
+			})
+		})
+	})
+
+	Convey("Given I have filter that slashes for incomplete expression", t, func() {
+
+		f := elemental.NewFilterComposer().
+			WithKey("x").Matches("/abc", ".*/").
+			Done()
+
+		Convey("When I compile the filter", func() {
+			b, _ := bson.MarshalJSON(toMap(CompileFilter(f)))
+
+			Convey("Then the bson should be correct", func() {
+				So(strings.Replace(string(b), "\n", "", 1), ShouldEqual, `{"$and":[{"$or":[{"x":{"$regex":"/abc"}},{"x":{"$regex":".*/"}}]}]}`)
+			})
+		})
+	})
+
+	Convey("Given I have filter that slashes with /i ", t, func() {
+
+		f := elemental.NewFilterComposer().
+			WithKey("x").Matches("abc/i", ".*/").
+			Done()
+
+		Convey("When I compile the filter", func() {
+			b, _ := bson.MarshalJSON(toMap(CompileFilter(f)))
+
+			Convey("Then the bson should be correct", func() {
+				So(strings.Replace(string(b), "\n", "", 1), ShouldEqual, `{"$and":[{"$or":[{"x":{"$regex":"abc/i"}},{"x":{"$regex":".*/"}}]}]}`)
+			})
+		})
+	})
+
 	Convey("Given I have filter that contains Exists", t, func() {
 
 		f := elemental.NewFilterComposer().
