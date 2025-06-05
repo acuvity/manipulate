@@ -5,8 +5,8 @@ go 1.23.0
 toolchain go1.24.0
 
 require (
-	go.acuvity.ai/elemental v0.0.0-20250416135043-bd666177eb03
-	go.acuvity.ai/wsc v0.0.0-20250219220143-0153e5776946
+	go.acuvity.ai/elemental v0.0.0-20250604155439-3dc9ecc6c0a3
+	go.acuvity.ai/wsc v0.0.0-20250506232542-8de7ff436ec0
 )
 
 require (
