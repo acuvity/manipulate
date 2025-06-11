@@ -5,26 +5,25 @@ export GO111MODULE = on
 
 default: lint test
 
+install-tools:
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+	go install github.com/securego/gosec/cmd/gosec@master
+
 lint:
-	# --enable=unparam
 	golangci-lint run \
 		--timeout=5m \
-		--disable-all \
-		--exclude-use-default=false \
-		--exclude=package-comments \
-		--exclude=unused-parameter \
-		--exclude=dot-imports \
+		--disable=govet  \
 		--enable=errcheck \
-		--enable=goimports \
 		--enable=ineffassign \
-		--enable=revive \
 		--enable=unused \
-		--enable=staticcheck \
 		--enable=unconvert \
 		--enable=misspell \
 		--enable=prealloc \
 		--enable=nakedret \
-		--enable=typecheck \
+		--enable=unparam \
+		--enable=nilerr \
+		--enable=bodyclose \
+		--enable=errorlint \
 		./...
 
 test:

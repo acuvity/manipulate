@@ -33,7 +33,7 @@ jobs:
 
       - name: setup
         run: |
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
       - name: build
         run: |
@@ -41,7 +41,6 @@ jobs:
           make
 
       - uses: acuvity/cov@1.0.2
-        if: ${{ matrix.go == '1.24' }}
         with:
           main_branch: master
           cov_file: unit_coverage.out
