@@ -12,7 +12,7 @@ import (
 )
 
 // generateListCommandForIdentity generates the command to list all objects based on its identity.
-func generateListCommandForIdentity(identity elemental.Identity, modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) (*cobra.Command, error) {
+func generateListCommandForIdentity(identity elemental.Identity, modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     identity.Name,
@@ -67,7 +67,7 @@ func generateListCommandForIdentity(identity elemental.Identity, modelManager el
 			if fFilter != "" {
 				f, err := elemental.NewFilterFromString(fFilter)
 				if err != nil {
-					return fmt.Errorf("unable to parse filter %s: %s", fFilter, err)
+					return fmt.Errorf("unable to parse filter %s: %w", fFilter, err)
 				}
 				options = append(options, manipulate.ContextOptionFilter(f))
 			}
@@ -123,5 +123,5 @@ func generateListCommandForIdentity(identity elemental.Identity, modelManager el
 	cmd.Flags().StringSliceP(flagOrder, "O", nil, "Ordering of the result.")
 	cmd.Flags().StringP(flagParent, "", "", "Provide information about parent resource. Format `name/ID`")
 
-	return cmd, nil
+	return cmd
 }

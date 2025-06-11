@@ -22,11 +22,10 @@ func Test_generateCountCommandForIdentity(t *testing.T) {
 			return 2, nil
 		})
 
-		cmd, err := generateCountCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateCountCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return m, nil
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute without filter", func() {
@@ -70,11 +69,10 @@ func Test_generateCountCommandForIdentity(t *testing.T) {
 
 	Convey("Given I generate a count command that returns an error", t, func() {
 
-		cmd, err := generateCountCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateCountCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return nil, fmt.Errorf("boom")
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute", func() {

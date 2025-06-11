@@ -133,9 +133,10 @@ func (s *subscription) UpdateFilter(filter *elemental.PushConfig) {
 	}
 }
 
-func (s *subscription) connect(ctx context.Context, initial bool) (err error) {
+func (s *subscription) connect(ctx context.Context, initial bool) {
 
 	var resp *http.Response
+	var err error
 	var try int
 
 	for {
@@ -167,7 +168,7 @@ func (s *subscription) connect(ctx context.Context, initial bool) (err error) {
 
 			_ = resp.Body.Close() // nolint
 
-			return nil
+			return
 		}
 
 		if initial {
@@ -199,10 +200,7 @@ func (s *subscription) listen(ctx context.Context) {
 
 	for {
 
-		if err = s.connect(ctx, !isReconnection); err != nil {
-			s.publishError(err)
-			return
-		}
+		s.connect(ctx, !isReconnection)
 		// If we have a current filter, we send it right away
 		if f := s.getCurrentFilter(); f != nil {
 			select {

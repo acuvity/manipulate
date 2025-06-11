@@ -11,7 +11,10 @@
 
 package manipulate
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrInvalidQuery represents an error due to an invalid query.
 type ErrInvalidQuery struct {
@@ -44,10 +47,9 @@ func (e ErrCannotUnmarshal) Unwrap() error { return e.Err }
 
 func (e ErrCannotUnmarshal) Error() string { return "Unable to unmarshal data: " + e.Err.Error() }
 
-// IsCannotUnmarshalError returns true if the given error is am ErrCannotUnmarshal.
+// IsCannotUnmarshalError returns true if the given error is an ErrCannotUnmarshal.
 func IsCannotUnmarshalError(err error) bool {
-	_, ok := err.(ErrCannotUnmarshal)
-	return ok
+	return errors.As(err, &ErrCannotUnmarshal{})
 }
 
 // ErrCannotMarshal represents marshaling error.
@@ -66,10 +68,9 @@ func (e ErrCannotMarshal) Unwrap() error { return e.Err }
 
 func (e ErrCannotMarshal) Error() string { return "Unable to marshal data: " + e.Err.Error() }
 
-// IsCannotMarshalError returns true if the given error is am ErrCannotMarshal.
+// IsCannotMarshalError returns true if the given error is an ErrCannotMarshal.
 func IsCannotMarshalError(err error) bool {
-	_, ok := err.(ErrCannotMarshal)
-	return ok
+	return errors.As(err, &ErrCannotMarshal{})
 }
 
 // ErrObjectNotFound represents object not found error.
@@ -88,10 +89,9 @@ func (e ErrObjectNotFound) Unwrap() error { return e.Err }
 
 func (e ErrObjectNotFound) Error() string { return "Object not found: " + e.Err.Error() }
 
-// IsObjectNotFoundError returns true if the given error is am ErrObjectNotFound.
+// IsObjectNotFoundError returns true if the given error is an ErrObjectNotFound.
 func IsObjectNotFoundError(err error) bool {
-	_, ok := err.(ErrObjectNotFound)
-	return ok
+	return errors.As(err, &ErrObjectNotFound{})
 }
 
 // ErrMultipleObjectsFound represents too many object found error.
@@ -110,10 +110,9 @@ func (e ErrMultipleObjectsFound) Unwrap() error { return e.Err }
 
 func (e ErrMultipleObjectsFound) Error() string { return "Multiple objects found: " + e.Err.Error() }
 
-// IsMultipleObjectsFoundError returns true if the given error is am ErrMultipleObjectsFound.
+// IsMultipleObjectsFoundError returns true if the given error is an ErrMultipleObjectsFound.
 func IsMultipleObjectsFoundError(err error) bool {
-	_, ok := err.(ErrMultipleObjectsFound)
-	return ok
+	return errors.As(err, &ErrMultipleObjectsFound{})
 }
 
 // ErrCannotBuildQuery represents query building error.
@@ -132,10 +131,9 @@ func (e ErrCannotBuildQuery) Unwrap() error { return e.Err }
 
 func (e ErrCannotBuildQuery) Error() string { return "Unable to build query: " + e.Err.Error() }
 
-// IsCannotBuildQueryError returns true if the given error is am ErrCannotBuildQuery.
+// IsCannotBuildQueryError returns true if the given error is an ErrCannotBuildQuery.
 func IsCannotBuildQueryError(err error) bool {
-	_, ok := err.(ErrCannotBuildQuery)
-	return ok
+	return errors.As(err, &ErrCannotBuildQuery{})
 }
 
 // ErrCannotExecuteQuery represents query execution error.
@@ -154,10 +152,9 @@ func (e ErrCannotExecuteQuery) Unwrap() error { return e.Err }
 
 func (e ErrCannotExecuteQuery) Error() string { return "Unable to execute query: " + e.Err.Error() }
 
-// IsCannotExecuteQueryError returns true if the given error is am ErrCannotExecuteQuery.
+// IsCannotExecuteQueryError returns true if the given error is an ErrCannotExecuteQuery.
 func IsCannotExecuteQueryError(err error) bool {
-	_, ok := err.(ErrCannotExecuteQuery)
-	return ok
+	return errors.As(err, &ErrCannotExecuteQuery{})
 }
 
 // ErrCannotCommit represents commit execution error.
@@ -176,10 +173,9 @@ func (e ErrCannotCommit) Unwrap() error { return e.Err }
 
 func (e ErrCannotCommit) Error() string { return "Unable to commit transaction: " + e.Err.Error() }
 
-// IsCannotCommitError returns true if the given error is am ErrCannotCommit.
+// IsCannotCommitError returns true if the given error is an ErrCannotCommit.
 func IsCannotCommitError(err error) bool {
-	_, ok := err.(ErrCannotCommit)
-	return ok
+	return errors.As(err, &ErrCannotCommit{})
 }
 
 // ErrNotImplemented represents a non implemented function.
@@ -198,10 +194,9 @@ func (e ErrNotImplemented) Unwrap() error { return e.Err }
 
 func (e ErrNotImplemented) Error() string { return "Not implemented: " + e.Err.Error() }
 
-// IsNotImplementedError returns true if the given error is am ErrNotImplemented.
+// IsNotImplementedError returns true if the given error is an ErrNotImplemented.
 func IsNotImplementedError(err error) bool {
-	_, ok := err.(ErrNotImplemented)
-	return ok
+	return errors.As(err, &ErrNotImplemented{})
 }
 
 // ErrCannotCommunicate represents a failure in backend communication.
@@ -220,10 +215,9 @@ func (e ErrCannotCommunicate) Unwrap() error { return e.Err }
 
 func (e ErrCannotCommunicate) Error() string { return "Cannot communicate: " + e.Err.Error() }
 
-// IsCannotCommunicateError returns true if the given error is am ErrCannotCommunicate.
+// IsCannotCommunicateError returns true if the given error is an ErrCannotCommunicate.
 func IsCannotCommunicateError(err error) bool {
-	_, ok := err.(ErrCannotCommunicate)
-	return ok
+	return errors.As(err, &ErrCannotCommunicate{})
 }
 
 // ErrLocked represents the error returned when the server api is locked..
@@ -242,10 +236,9 @@ func (e ErrLocked) Unwrap() error { return e.Err }
 
 func (e ErrLocked) Error() string { return "Cannot communicate: " + e.Err.Error() }
 
-// IsLockedError returns true if the given error is am ErrLocked.
+// IsLockedError returns true if the given error is an ErrLocked.
 func IsLockedError(err error) bool {
-	_, ok := err.(ErrLocked)
-	return ok
+	return errors.As(err, &ErrLocked{})
 }
 
 // ErrTransactionNotFound represents a failure to find a transaction.
@@ -264,10 +257,9 @@ func (e ErrTransactionNotFound) Unwrap() error { return e.Err }
 
 func (e ErrTransactionNotFound) Error() string { return "Transaction not found: " + e.Err.Error() }
 
-// IsTransactionNotFoundError returns true if the given error is am ErrTransactionNotFound.
+// IsTransactionNotFoundError returns true if the given error is an ErrTransactionNotFound.
 func IsTransactionNotFoundError(err error) bool {
-	_, ok := err.(ErrTransactionNotFound)
-	return ok
+	return errors.As(err, &ErrTransactionNotFound{})
 }
 
 // ErrConstraintViolation represents a failure to find a transaction.
@@ -286,10 +278,9 @@ func (e ErrConstraintViolation) Unwrap() error { return e.Err }
 
 func (e ErrConstraintViolation) Error() string { return "Constraint violation: " + e.Err.Error() }
 
-// IsConstraintViolationError returns true if the given error is am ErrConstraintViolation.
+// IsConstraintViolationError returns true if the given error is an ErrConstraintViolation.
 func IsConstraintViolationError(err error) bool {
-	_, ok := err.(ErrConstraintViolation)
-	return ok
+	return errors.As(err, &ErrConstraintViolation{})
 }
 
 // ErrDisconnected represents an error due user disconnection.
@@ -308,10 +299,9 @@ func (e ErrDisconnected) Unwrap() error { return e.Err }
 
 func (e ErrDisconnected) Error() string { return "Disconnected: " + e.Err.Error() }
 
-// IsDisconnectedError returns true if the given error is am ErrDisconnected.
+// IsDisconnectedError returns true if the given error is an ErrDisconnected.
 func IsDisconnectedError(err error) bool {
-	_, ok := err.(ErrDisconnected)
-	return ok
+	return errors.As(err, &ErrDisconnected{})
 }
 
 // ErrTooManyRequests represents the error returned when the server api is locked.
@@ -330,10 +320,9 @@ func (e ErrTooManyRequests) Unwrap() error { return e.Err }
 
 func (e ErrTooManyRequests) Error() string { return "Too many requests: " + e.Err.Error() }
 
-// IsTooManyRequestsError returns true if the given error is am ErrTooManyRequests.
+// IsTooManyRequestsError returns true if the given error is an ErrTooManyRequests.
 func IsTooManyRequestsError(err error) bool {
-	_, ok := err.(ErrTooManyRequests)
-	return ok
+	return errors.As(err, &ErrTooManyRequests{})
 }
 
 // ErrTLS represents the error returned when there is a TLS error.
@@ -352,8 +341,7 @@ func (e ErrTLS) Unwrap() error { return e.Err }
 
 func (e ErrTLS) Error() string { return "TLS error: " + e.Err.Error() }
 
-// IsTLSError returns true if the given error is am ErrTLS.
+// IsTLSError returns true if the given error is an ErrTLS.
 func IsTLSError(err error) bool {
-	_, ok := err.(ErrTLS)
-	return ok
+	return errors.As(err, &ErrTLS{})
 }

@@ -167,7 +167,7 @@ func RetrieveObjectByIDOrByName(
 }
 
 // readViperFlags reads all vipers flags without prefix
-func readViperFlags(identifiable elemental.Identifiable, modelManager elemental.ModelManager, prefix string) error {
+func readViperFlags(identifiable elemental.Identifiable, prefix string) error {
 
 	if identifiable == nil {
 		return fmt.Errorf("provided identifiable is nil")
@@ -177,13 +177,13 @@ func readViperFlags(identifiable elemental.Identifiable, modelManager elemental.
 		return fmt.Errorf("%s is not an AttributeSpecifiable", identifiable.Identity().Name)
 	}
 
-	_, err := readViperFlagsWithPrefix(specifiable, modelManager, prefix)
+	_, err := readViperFlagsWithPrefix(specifiable, prefix)
 	return err
 }
 
 // readViperFlags reads all viper flags and fill the identifiable properties.
 // TODO: Make it better and add more types here.
-func readViperFlagsWithPrefix(specifiable elemental.AttributeSpecifiable, modelManager elemental.ModelManager, prefix string) (bool, error) {
+func readViperFlagsWithPrefix(specifiable elemental.AttributeSpecifiable, prefix string) (bool, error) {
 
 	var didSet bool
 
@@ -275,7 +275,7 @@ func readViperFlagsWithPrefix(specifiable elemental.AttributeSpecifiable, modelM
 				continue
 			}
 
-			innerDidSet, err := readViperFlagsWithPrefix(specifiable, modelManager, flagName)
+			innerDidSet, err := readViperFlagsWithPrefix(specifiable, flagName)
 			if err != nil {
 				return false, err
 			}
@@ -309,7 +309,7 @@ func readViperFlagsWithPrefix(specifiable elemental.AttributeSpecifiable, modelM
 }
 
 // setViperFlags
-func setViperFlags(cmd *cobra.Command, identifiable elemental.Identifiable, modelManager elemental.ModelManager, prefix string) error {
+func setViperFlags(cmd *cobra.Command, identifiable elemental.Identifiable, prefix string) error {
 
 	if cmd == nil {
 		return fmt.Errorf("provided command is nil")
@@ -324,12 +324,12 @@ func setViperFlags(cmd *cobra.Command, identifiable elemental.Identifiable, mode
 		return fmt.Errorf("%s is not an AttributeSpecifiable", identifiable.Identity().Name)
 	}
 
-	return setViperFlagsWithPrefix(cmd, specifiable, modelManager, prefix)
+	return setViperFlagsWithPrefix(cmd, specifiable, prefix)
 }
 
 // setViperFlagsWithPrefix sets the viper flags to the command according to the identifiable
 // TODO: Make it better and add more types here.
-func setViperFlagsWithPrefix(cmd *cobra.Command, specifiable elemental.AttributeSpecifiable, modelManager elemental.ModelManager, prefix string) error {
+func setViperFlagsWithPrefix(cmd *cobra.Command, specifiable elemental.AttributeSpecifiable, prefix string) error {
 
 	rv := reflect.ValueOf(specifiable).Elem()
 
@@ -375,7 +375,7 @@ func setViperFlagsWithPrefix(cmd *cobra.Command, specifiable elemental.Attribute
 				continue
 			}
 
-			err := setViperFlagsWithPrefix(cmd, specifiable, modelManager, flagName)
+			err := setViperFlagsWithPrefix(cmd, specifiable, flagName)
 			if err != nil {
 				return err
 			}
@@ -425,13 +425,13 @@ func ReadData(
 
 	if url == "" && file == "" {
 		if mandatory {
-			return nil, fmt.Errorf("You must pass either %s or %s", flagInputFile, flagInputURL)
+			return nil, fmt.Errorf("you must pass either %s or %s", flagInputFile, flagInputURL)
 		}
 		return nil, nil
 	}
 
 	if url != "" && file != "" {
-		return nil, fmt.Errorf("You cannot set both %s and %s", flagInputFile, flagInputURL)
+		return nil, fmt.Errorf("you cannot set both %s and %s", flagInputFile, flagInputURL)
 	}
 
 	var processed bool
@@ -445,7 +445,7 @@ func ReadData(
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("Unable to retrieve data from url %s: %s", url, resp.Status)
+			return nil, fmt.Errorf("unable to retrieve data from url %s: %s", url, resp.Status)
 		}
 
 		defer resp.Body.Close() // nolint
@@ -479,7 +479,7 @@ func ReadData(
 	}
 
 	if !processed && mandatory {
-		return nil, fmt.Errorf("You must pass either %s or %s", flagInputFile, flagInputURL)
+		return nil, fmt.Errorf("you must pass either %s or %s", flagInputFile, flagInputURL)
 	}
 
 	if !processed && !mandatory {
@@ -586,7 +586,7 @@ func renderTemplate(content string, values any) ([]byte, error) {
 
 	tpl, err := template.New("template").Funcs(funcs).Parse(content)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse template: %s", err)
+		return nil, fmt.Errorf("unable to parse template: %w", err)
 	}
 
 	buf := &bytes.Buffer{}

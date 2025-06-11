@@ -95,7 +95,7 @@ func Test_readViperFlags(t *testing.T) {
 		}
 
 		task := testmodel.NewTask()
-		err := setViperFlags(cmd, task, testmodel.Manager(), "")
+		err := setViperFlags(cmd, task, "")
 		So(err, ShouldEqual, nil)
 		err = viper.BindPFlags(cmd.Flags())
 		So(err, ShouldEqual, nil)
@@ -106,7 +106,7 @@ func Test_readViperFlags(t *testing.T) {
 
 		Convey("When I call readViperFlags with force=false", func() {
 
-			err = readViperFlags(task, testmodel.Manager(), "")
+			err = readViperFlags(task, "")
 
 			Convey("Then I should get an error", func() {
 				So(err, ShouldEqual, nil)
@@ -120,7 +120,7 @@ func Test_readViperFlags(t *testing.T) {
 
 	Convey("Given a nil identifiable", t, func() {
 		Convey("When I call readViperFlags with force=false", func() {
-			err := readViperFlags(nil, testmodel.Manager(), "")
+			err := readViperFlags(nil, "")
 			Convey("Then I should get an error", func() {
 				So(err, ShouldNotEqual, nil)
 				So(err.Error(), ShouldContainSubstring, "provided identifiable is nil")
@@ -295,7 +295,7 @@ func Test_setViperFlags(t *testing.T) {
 		}
 
 		Convey("When I call setViperFlags with an empty identifiable", func() {
-			err := setViperFlags(cmd, nil, testmodel.Manager(), "")
+			err := setViperFlags(cmd, nil, "")
 
 			Convey("Then I should get an error", func() {
 				So(err, ShouldNotEqual, nil)
@@ -305,7 +305,7 @@ func Test_setViperFlags(t *testing.T) {
 
 		Convey("When I call setViperFlags with a valid identifiable", func() {
 			task := testmodel.NewTask()
-			err := setViperFlags(cmd, task, testmodel.Manager(), "")
+			err := setViperFlags(cmd, task, "")
 
 			Convey("Then I should get an error", func() {
 				So(err, ShouldEqual, nil)

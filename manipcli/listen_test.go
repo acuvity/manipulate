@@ -63,11 +63,10 @@ func Test_generateListenCommand(t *testing.T) {
 		m, err := maniphttp.New(ctx, ts.URL, maniphttp.OptionTLSConfig(tlsConfig))
 		So(err, ShouldEqual, nil)
 
-		cmd, err := generateListenCommand(testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateListenCommand(testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return m, nil
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute", func() {
@@ -108,11 +107,10 @@ func Test_generateListenCommand(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		cmd, err := generateListenCommand(testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateListenCommand(testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return nil, fmt.Errorf("boom")
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute", func() {
@@ -144,11 +142,10 @@ func Test_generateListenCommand(t *testing.T) {
 		m, err := maniphttp.New(context.Background(), "https://blabla.bla")
 		So(err, ShouldEqual, nil)
 
-		cmd, err := generateListenCommand(testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateListenCommand(testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return m, nil
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute", func() {

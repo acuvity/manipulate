@@ -12,7 +12,7 @@ import (
 )
 
 // generateGetCommandForIdentity generates the command to get an object based on its identity.
-func generateGetCommandForIdentity(identity elemental.Identity, modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) (*cobra.Command, error) {
+func generateGetCommandForIdentity(identity elemental.Identity, modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     fmt.Sprintf("%s <id-or-name>", identity.Name),
@@ -76,5 +76,5 @@ func generateGetCommandForIdentity(identity elemental.Identity, modelManager ele
 		},
 	}
 
-	return cmd, nil
+	return cmd
 }

@@ -51,7 +51,7 @@ func New(url string, db string, options ...Option) (manipulate.TransactionalMani
 
 	dialInfo, err := mgo.ParseURL(url)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse mongo url '%s': %s", url, err)
+		return nil, fmt.Errorf("cannot parse mongo url '%s': %w", url, err)
 	}
 
 	dialInfo.Database = db
@@ -80,7 +80,7 @@ func New(url string, db string, options ...Option) (manipulate.TransactionalMani
 
 	session, err := mgo.DialWithInfo(dialInfo)
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to mongo url '%s': %s", url, err)
+		return nil, fmt.Errorf("cannot connect to mongo url '%s': %w", url, err)
 	}
 
 	session.SetSocketTimeout(cfg.socketTimeout)

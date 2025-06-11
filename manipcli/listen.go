@@ -16,7 +16,7 @@ import (
 )
 
 // generateListenCommandForIdentity generates the command to listen for events based on its identity.
-func generateListenCommand(modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) (*cobra.Command, error) {
+func generateListenCommand(modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "listen",
@@ -133,5 +133,5 @@ func generateListenCommand(modelManager elemental.ModelManager, manipulatorMaker
 	cmd.Flags().BoolP(flagRecursive, "r", false, "Listen to all events in the current namespace and all child namespaces.")
 	cmd.Flags().StringSliceP("identity", "i", []string{}, "Only display events for the given identities.")
 
-	return cmd, nil
+	return cmd
 }

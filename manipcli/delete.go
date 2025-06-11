@@ -12,7 +12,7 @@ import (
 )
 
 // generateDeleteCommandForIdentity generates the command to delete an object based on its identity.
-func generateDeleteCommandForIdentity(identity elemental.Identity, modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) (*cobra.Command, error) {
+func generateDeleteCommandForIdentity(identity elemental.Identity, modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     fmt.Sprintf("%s <id-or-name>", identity.Name),
@@ -82,5 +82,5 @@ func generateDeleteCommandForIdentity(identity elemental.Identity, modelManager 
 
 	cmd.Flags().BoolP(flagForce, "", false, "Force deletion of protected object")
 
-	return cmd, nil
+	return cmd
 }

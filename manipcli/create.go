@@ -102,7 +102,7 @@ func generateCreateCommandForIdentity(identity elemental.Identity, modelManager 
 
 			} else {
 
-				if err := readViperFlags(identifiable, modelManager, cfg.argumentsPrefix); err != nil {
+				if err := readViperFlags(identifiable, cfg.argumentsPrefix); err != nil {
 					return fmt.Errorf("unable to read flags: %w", err)
 				}
 
@@ -137,7 +137,7 @@ func generateCreateCommandForIdentity(identity elemental.Identity, modelManager 
 	}
 
 	identifiable := modelManager.IdentifiableFromString(identity.Name)
-	if err := setViperFlags(cmd, identifiable, modelManager, cfg.argumentsPrefix); err != nil {
+	if err := setViperFlags(cmd, identifiable, cfg.argumentsPrefix); err != nil {
 		return nil, fmt.Errorf("unable to set flags for %s: %w", identity.Name, err)
 	}
 

@@ -55,7 +55,7 @@ type outputFormat struct {
 }
 
 // prepareOutputFormat returns an OutputFormat structure that contains output information
-func prepareOutputFormat(output string, formatType string, columns []string, template string, opts ...prepareOutputOption) outputFormat {
+func prepareOutputFormat(output string, formatType string, columns []string, template string, opts ...prepareOutputOption) outputFormat { // nolint: unparam
 
 	cfg := prepareOutputConfig{}
 	for _, o := range opts {
@@ -221,12 +221,12 @@ func formatObjectsWithTemplate(obj []map[string]any, tpl string) (string, error)
 
 	t, err := template.New("tpl").Parse(tpl)
 	if err != nil {
-		return "", fmt.Errorf("unable to parse template: %s", err)
+		return "", fmt.Errorf("unable to parse template: %w", err)
 	}
 
 	buffer := bytes.NewBuffer(nil)
 	if err := t.Execute(buffer, obj); err != nil {
-		return "", fmt.Errorf("unable to execute template: %s", err)
+		return "", fmt.Errorf("unable to execute template: %w", err)
 	}
 
 	return buffer.String(), nil
@@ -237,12 +237,12 @@ func formatSingleObjectWithTemplate(obj map[string]any, tpl string) (string, err
 
 	t, err := template.New("tpl").Parse(tpl)
 	if err != nil {
-		return "", fmt.Errorf("unable to parse template: %s", err)
+		return "", fmt.Errorf("unable to parse template: %w", err)
 	}
 
 	buffer := bytes.NewBuffer(nil)
 	if err := t.Execute(buffer, obj); err != nil {
-		return "", fmt.Errorf("unable to execute template: %s", err)
+		return "", fmt.Errorf("unable to execute template: %w", err)
 	}
 
 	return buffer.String(), nil
@@ -356,7 +356,7 @@ func formatObjectsInTable(format outputFormat, objects []map[string]any) (string
 func remarshal(object any, target any) error {
 
 	if target == nil {
-		return fmt.Errorf("Unable to call remarshall on a nil target")
+		return fmt.Errorf("unable to call remarshall on a nil target")
 	}
 
 	if encodable, ok := object.(elemental.Encodable); ok {

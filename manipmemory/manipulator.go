@@ -13,6 +13,7 @@ package manipmemory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -186,7 +187,7 @@ func (m *memdbManipulator) Update(mctx manipulate.Context, object elemental.Iden
 
 	o, err := txn.Get(object.Identity().Category, "id", object.Identifier())
 	if err != nil || o.Next() == nil {
-		return manipulate.ErrObjectNotFound{Err: fmt.Errorf("Cannot find object with given ID")}
+		return manipulate.ErrObjectNotFound{Err: fmt.Errorf("cannot find object with given ID")}
 	}
 
 	var cp any
@@ -222,7 +223,7 @@ func (m *memdbManipulator) Delete(mctx manipulate.Context, object elemental.Iden
 	defer txn.Abort()
 
 	if err := txn.Delete(object.Identity().Category, object); err != nil {
-		if err == memdb.ErrNotFound {
+		if errors.Is(err, memdb.ErrNotFound) {
 			return manipulate.ErrObjectNotFound{Err: err}
 		}
 		return manipulate.ErrCannotExecuteQuery{Err: err}
@@ -258,7 +259,7 @@ func (m *memdbManipulator) Commit(id manipulate.TransactionID) error {
 	txn := m.registeredTxnWithID(id)
 
 	if txn == nil {
-		return manipulate.ErrCannotCommit{Err: fmt.Errorf("Cannot find transaction: %s ", id)}
+		return manipulate.ErrCannotCommit{Err: fmt.Errorf("cannot find transaction: %s ", id)}
 	}
 
 	txn.Commit()
@@ -354,7 +355,7 @@ func (m *memdbManipulator) retrieveFromFilter(identity string, f *elemental.Filt
 				for _, v := range values {
 
 					if !strings.HasPrefix(v.(string), "^") {
-						return manipulate.ErrCannotExecuteQuery{Err: fmt.Errorf("Matches filter only works for prefix matching and must always start with a '^'")}
+						return manipulate.ErrCannotExecuteQuery{Err: fmt.Errorf("matches filter only works for prefix matching and must always start with a '^'")}
 					}
 
 					fv := strings.TrimPrefix(v.(string), "^")

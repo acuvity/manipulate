@@ -368,7 +368,7 @@ func TestTestManipulator_MockAbort(t *testing.T) {
 
 				ok = m.Abort(manipulate.NewTransactionID())
 
-				Convey("Then err should be nil", func() {
+				Convey("Then should be aborted", func() {
 					So(ok, ShouldBeTrue)
 				})
 			})

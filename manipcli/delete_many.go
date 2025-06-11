@@ -12,10 +12,10 @@ import (
 )
 
 // generateDeleteManyCommandForIdentity generates the command to delete many objects based on its identity.
-func generateDeleteManyCommandForIdentity(identity elemental.Identity, modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) (*cobra.Command, error) {
+func generateDeleteManyCommandForIdentity(identity elemental.Identity, modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) *cobra.Command {
 
 	cmd := &cobra.Command{
-		Use:     fmt.Sprintf("%s", identity.Name),
+		Use:     identity.Name,
 		Aliases: []string{identity.Category},
 		Short:   "Delete multiple " + identity.Category,
 		// Aliases: TODO: Missing alias from the spec file -> To be stored in the identity ?,
@@ -50,7 +50,7 @@ func generateDeleteManyCommandForIdentity(identity elemental.Identity, modelMana
 			if fFilter != "" {
 				f, err := elemental.NewFilterFromString(fFilter)
 				if err != nil {
-					return fmt.Errorf("unable to parse filter %s: %s", fFilter, err)
+					return fmt.Errorf("unable to parse filter %s: %w", fFilter, err)
 				}
 				options = append(options, manipulate.ContextOptionFilter(f))
 			}
@@ -118,5 +118,5 @@ func generateDeleteManyCommandForIdentity(identity elemental.Identity, modelMana
 	cmd.Flags().StringP(flagFilter, "f", "", "Query filter.")
 	cmd.Flags().BoolP(flagConfirm, "", false, "Confirm deletion of multiple objects")
 
-	return cmd, nil
+	return cmd
 }

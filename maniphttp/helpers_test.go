@@ -233,6 +233,8 @@ func TestManiphttp_DirectSend(t *testing.T) {
 				So(err, ShouldBeNil)
 			})
 
+			defer func() { _ = resp.Body.Close() }()
+
 			Convey("Then the response should be correct", func() {
 				So(resp, ShouldNotBeNil)
 				So(resp.StatusCode, ShouldEqual, http.StatusOK)
@@ -247,7 +249,7 @@ func TestManiphttp_DirectSend(t *testing.T) {
 		Convey("When I call DirectSend", func() {
 
 			Convey("Then it should panic", func() {
-				So(func() { _, _ = DirectSend(m, nil, "", http.MethodPost, nil) }, ShouldPanicWith, "You can only pass a HTTP Manipulator to DirectSend")
+				So(func() { _, _ = DirectSend(m, nil, "", http.MethodPost, nil) }, ShouldPanicWith, "You can only pass a HTTP Manipulator to DirectSend") // nolint: bodyclose
 			})
 		})
 	})
@@ -308,6 +310,8 @@ func TestManiphttp_BatchCreate(t *testing.T) {
 				So(err, ShouldBeNil)
 			})
 
+			defer func() { _ = resp.Body.Close() }()
+
 			Convey("Then the response should be correct", func() {
 				So(resp, ShouldNotBeNil)
 				So(resp.StatusCode, ShouldEqual, http.StatusOK)
@@ -317,9 +321,9 @@ func TestManiphttp_BatchCreate(t *testing.T) {
 
 		Convey("When I call BatchCreate with an unmarshallable object", func() {
 
-			resp, err := BatchCreate(m, nil, testmodel.NewUnmarshalableList())
+			resp, err := BatchCreate(m, nil, testmodel.NewUnmarshalableList()) // nolint: bodyclose
 
-			Convey("Then err should be nil", func() {
+			Convey("Then err should not be nil", func() {
 				So(err, ShouldNotBeNil)
 				So(err.Error(), ShouldEqual, `unable to encode application/json: json encode error: error marshalling`)
 			})
@@ -383,6 +387,8 @@ func TestManiphttp_BatchCreate(t *testing.T) {
 			Convey("Then err should be nil", func() {
 				So(err, ShouldBeNil)
 			})
+
+			defer func() { _ = resp.Body.Close() }()
 
 			Convey("Then the response should be correct", func() {
 				So(resp, ShouldNotBeNil)
@@ -450,6 +456,8 @@ func TestManiphttp_BatchCreate(t *testing.T) {
 				So(err, ShouldBeNil)
 			})
 
+			defer func() { _ = resp.Body.Close() }()
+
 			Convey("Then the response should be correct", func() {
 				So(resp, ShouldNotBeNil)
 				So(resp.StatusCode, ShouldEqual, http.StatusOK)
@@ -464,7 +472,7 @@ func TestManiphttp_BatchCreate(t *testing.T) {
 		l1 := testmodel.NewList()
 
 		Convey("Then it should panic", func() {
-			So(func() { _, _ = BatchCreate(m, nil, l1) }, ShouldPanicWith, "You can only pass a HTTP Manipulator to BatchCreate")
+			So(func() { _, _ = BatchCreate(m, nil, l1) }, ShouldPanicWith, "You can only pass a HTTP Manipulator to BatchCreate") // nolint: bodyclose
 		})
 	})
 
@@ -477,7 +485,7 @@ func TestManiphttp_BatchCreate(t *testing.T) {
 		)
 
 		Convey("Then it should panic", func() {
-			So(func() { _, _ = BatchCreate(m, nil) }, ShouldPanicWith, "You must pass at least one object to BatchCreate")
+			So(func() { _, _ = BatchCreate(m, nil) }, ShouldPanicWith, "You must pass at least one object to BatchCreate") // nolint: bodyclose
 		})
 	})
 

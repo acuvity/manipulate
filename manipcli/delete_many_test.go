@@ -39,11 +39,10 @@ func Test_generateDeleteManyCommandForIdentity(t *testing.T) {
 			return nil
 		})
 
-		cmd, err := generateDeleteManyCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateDeleteManyCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return m, nil
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I use a valid filter", func() {
@@ -98,11 +97,10 @@ func Test_generateDeleteManyCommandForIdentity(t *testing.T) {
 
 	Convey("Given I generate a delete-many command that returns an error", t, func() {
 
-		cmd, err := generateDeleteManyCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateDeleteManyCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return nil, fmt.Errorf("boom")
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute", func() {
@@ -127,11 +125,10 @@ func Test_generateDeleteManyCommandForIdentity(t *testing.T) {
 			return nil
 		})
 
-		cmd, err := generateDeleteManyCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateDeleteManyCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return m, nil
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call the function", func() {
@@ -170,11 +167,10 @@ func Test_generateDeleteManyCommandForIdentity(t *testing.T) {
 			return fmt.Errorf("delete boom")
 		})
 
-		cmd, err := generateDeleteManyCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateDeleteManyCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return m, nil
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call the function", func() {

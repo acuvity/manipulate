@@ -73,7 +73,7 @@ func ManipulatorMakerFromFlags(options ...maniphttp.Option) ManipulatorMaker {
 
 		rootCAPool, err := prepareAPICACertPool(capath)
 		if err != nil {
-			return nil, fmt.Errorf("unable to load root ca pool: %s", err)
+			return nil, fmt.Errorf("unable to load root ca pool: %w", err)
 		}
 
 		/* #nosec */
@@ -198,56 +198,18 @@ func New(modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker,
 			)
 		}
 
-		if cmd, err := generateDeleteCommandForIdentity(identity, modelManager, manipulatorMaker); err == nil {
-			deleteCmd.AddCommand(cmd)
-		} else {
-			slog.Debug("unable to generate delete command for identity",
-				"identity", identity.Name,
-				err,
-			)
-		}
+		deleteCmd.AddCommand(generateDeleteCommandForIdentity(identity, modelManager, manipulatorMaker))
 
-		if cmd, err := generateDeleteManyCommandForIdentity(identity, modelManager, manipulatorMaker); err == nil {
-			deleteManyCmd.AddCommand(cmd)
-		} else {
-			slog.Debug("unable to generate delete-many command for identity",
-				"identity", identity.Name,
-				err,
-			)
-		}
+		deleteManyCmd.AddCommand(generateDeleteManyCommandForIdentity(identity, modelManager, manipulatorMaker))
 
-		if cmd, err := generateGetCommandForIdentity(identity, modelManager, manipulatorMaker); err == nil {
-			getCmd.AddCommand(cmd)
-		} else {
-			slog.Debug("unable to generate get command for identity",
-				"identity", identity.Name,
-				err,
-			)
-		}
+		getCmd.AddCommand(generateGetCommandForIdentity(identity, modelManager, manipulatorMaker))
 
-		if cmd, err := generateListCommandForIdentity(identity, modelManager, manipulatorMaker); err == nil {
-			listCmd.AddCommand(cmd)
-		} else {
-			slog.Debug("unable to generate list command for identity",
-				"identity", identity.Name,
-				err,
-			)
-		}
+		listCmd.AddCommand(generateListCommandForIdentity(identity, modelManager, manipulatorMaker))
 
-		if cmd, err := generateCountCommandForIdentity(identity, modelManager, manipulatorMaker); err == nil {
-			countCmd.AddCommand(cmd)
-		} else {
-			slog.Debug("unable to generate count command for identity",
-				"identity", identity.Name,
-				err,
-			)
-		}
+		countCmd.AddCommand(generateCountCommandForIdentity(identity, modelManager, manipulatorMaker))
 	}
 
-	listenCmd, err := generateListenCommand(modelManager, manipulatorMaker)
-	if err != nil {
-		slog.Debug("unable to generate listen command for identity", err)
-	}
+	listenCmd := generateListenCommand(modelManager, manipulatorMaker)
 
 	rootCmd.AddCommand(
 		createCmd,

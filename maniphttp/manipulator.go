@@ -186,6 +186,7 @@ func (s *httpManipulator) RetrieveMany(mctx manipulate.Context, dest elemental.I
 		sp.LogFields(log.Error(err))
 		return err
 	}
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode == http.StatusNoContent {
 		return nil
@@ -229,6 +230,7 @@ func (s *httpManipulator) Retrieve(mctx manipulate.Context, object elemental.Ide
 		sp.LogFields(log.Error(err))
 		return err
 	}
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode == http.StatusNoContent {
 		return nil
@@ -283,6 +285,7 @@ func (s *httpManipulator) Create(mctx manipulate.Context, object elemental.Ident
 		sp.LogFields(log.Error(err))
 		return err
 	}
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode == http.StatusNoContent {
 		return nil
@@ -346,6 +349,7 @@ func (s *httpManipulator) Update(mctx manipulate.Context, object elemental.Ident
 		sp.LogFields(log.Error(err))
 		return err
 	}
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode == http.StatusNoContent {
 		return nil
@@ -392,6 +396,7 @@ func (s *httpManipulator) Delete(mctx manipulate.Context, object elemental.Ident
 		sp.LogFields(log.Error(err))
 		return err
 	}
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode == http.StatusNoContent {
 		return nil
@@ -427,11 +432,13 @@ func (s *httpManipulator) Count(mctx manipulate.Context, identity elemental.Iden
 		return 0, manipulate.ErrCannotBuildQuery{Err: err}
 	}
 
-	if _, err = s.send(mctx, http.MethodHead, url, nil, nil, sp); err != nil {
+	response, err := s.send(mctx, http.MethodHead, url, nil, nil, sp)
+	if err != nil {
 		sp.SetTag("error", true)
 		sp.LogFields(log.Error(err))
 		return 0, err
 	}
+	defer func() { _ = response.Body.Close() }()
 
 	return mctx.Count(), nil
 }
@@ -691,12 +698,13 @@ func (s *httpManipulator) send(
 		if err != nil {
 
 			// Per doc, client.Do always returns an *url.Error.
-			uerr := err.(*url.Error)
+			var uerr *url.Error
+			errors.As(err, &uerr)
 
 			// We check for constant errors.
 			switch uerr.Err {
 
-			case context.Canceled:
+			case context.Canceled: // nolint: errorlint
 				return nil, manipulate.ErrDisconnected{Err: context.Canceled}
 
 			case context.DeadlineExceeded:
@@ -713,7 +721,7 @@ func (s *httpManipulator) send(
 			}
 
 			// We check for error types.
-			switch uerr.Err.(type) {
+			switch uerr.Err.(type) { // nolint: errorlint
 
 			case net.Error:
 
@@ -749,27 +757,27 @@ func (s *httpManipulator) send(
 		switch response.StatusCode {
 
 		case http.StatusBadGateway:
-			lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf("Bad gateway")}
+			lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf("bad gateway")}
 			goto RETRY
 
 		case http.StatusServiceUnavailable:
-			lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf("Service unavailable")}
+			lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf("service unavailable")}
 			goto RETRY
 
 		case http.StatusGatewayTimeout:
-			lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf("Gateway timeout")}
+			lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf("gateway timeout")}
 			goto RETRY
 
 		case http.StatusLocked:
-			lastError = manipulate.ErrLocked{Err: fmt.Errorf("The api has been locked down by the server")}
+			lastError = manipulate.ErrLocked{Err: fmt.Errorf("the api has been locked down by the server")}
 			goto RETRY
 
 		case http.StatusRequestTimeout:
-			lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf("Request Timeout")}
+			lastError = manipulate.ErrCannotCommunicate{Err: fmt.Errorf("request timeout")}
 			goto RETRY
 
 		case http.StatusTooManyRequests:
-			lastError = manipulate.ErrTooManyRequests{Err: fmt.Errorf("Too Many Requests")}
+			lastError = manipulate.ErrTooManyRequests{Err: fmt.Errorf("too many requests")}
 			retryCurve = s.strongBackoffCurve
 			goto RETRY
 		}

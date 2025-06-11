@@ -34,11 +34,10 @@ func Test_generateDeleteCommandForIdentity(t *testing.T) {
 			return nil
 		})
 
-		cmd, err := generateDeleteCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateDeleteCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return m, nil
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute", func() {
@@ -57,11 +56,10 @@ func Test_generateDeleteCommandForIdentity(t *testing.T) {
 
 	Convey("Given I generate a delete command that returns an error", t, func() {
 
-		cmd, err := generateDeleteCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateDeleteCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return nil, fmt.Errorf("boom")
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute", func() {
@@ -90,11 +88,10 @@ func Test_generateDeleteCommandForIdentity(t *testing.T) {
 			return nil
 		})
 
-		cmd, err := generateDeleteCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateDeleteCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return m, nil
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute", func() {
@@ -123,11 +120,10 @@ func Test_generateDeleteCommandForIdentity(t *testing.T) {
 			return fmt.Errorf("boom")
 		})
 
-		cmd, err := generateDeleteCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateDeleteCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return m, nil
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute", func() {

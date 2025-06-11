@@ -81,7 +81,7 @@ func (p *defaultPrefetcher) WarmUp(ctx context.Context, m manipulate.Manipulator
 		},
 		1000,
 	); err != nil {
-		return nil, fmt.Errorf("unable to warm up identity '%s': %s", identity.Name, err)
+		return nil, fmt.Errorf("unable to warm up identity '%s': %w", identity.Name, err)
 	}
 
 	return out, nil

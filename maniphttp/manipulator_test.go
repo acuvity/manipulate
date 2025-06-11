@@ -14,6 +14,7 @@ package maniphttp
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -490,10 +491,12 @@ func TestHTTP_Retrieve(t *testing.T) {
 			list.ID = "x"
 			err := m.Retrieve(nil, list)
 
+			var elemErr elemental.Errors
 			Convey("Then error should not be nil", func() {
 				So(err, ShouldNotBeNil)
-				So(err.(elemental.Errors).Code(), ShouldEqual, 422)
-				So(err.(elemental.Errors)[0].Description, ShouldEqual, "nope.")
+				So(errors.As(err, &elemErr), ShouldBeTrue)
+				So(elemErr.Code(), ShouldEqual, 422)
+				So(elemErr[0].Description, ShouldEqual, "nope.")
 			})
 		})
 	})
@@ -1033,7 +1036,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodGet, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodGet, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotCommunicate{})
@@ -1051,7 +1054,7 @@ func TestHTTP_send(t *testing.T) {
 			OptionStrongBackoffCurve(testingBackoffCurve),
 		)
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(context.Background()), http.MethodPost, "nop", nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(context.Background()), http.MethodPost, "nop", nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotExecuteQuery{})
@@ -1072,7 +1075,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 0)
 		cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, "https://google.com", nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, "https://google.com", nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotCommunicate{})
@@ -1093,7 +1096,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, "https://NANANAN", nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, "https://NANANAN", nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotCommunicate{})
@@ -1122,7 +1125,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotCommunicate{})
@@ -1148,7 +1151,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrTLS{})
@@ -1178,7 +1181,7 @@ func TestHTTP_send(t *testing.T) {
 
 		var t int
 		var rerr error
-		resp, err := m.(*httpManipulator).send(
+		resp, err := m.(*httpManipulator).send( // nolint: bodyclose
 			manipulate.NewContext(
 				ctx,
 				manipulate.ContextOptionRetryFunc(func(i manipulate.RetryInfo) error {
@@ -1196,7 +1199,7 @@ func TestHTTP_send(t *testing.T) {
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotCommunicate{})
-		So(err.Error(), ShouldEqual, "Cannot communicate: Request Timeout")
+		So(err.Error(), ShouldEqual, "Cannot communicate: request timeout")
 		So(t, ShouldBeGreaterThan, 1)
 		So(rerr.Error(), ShouldEqual, err.Error())
 
@@ -1223,7 +1226,7 @@ func TestHTTP_send(t *testing.T) {
 		defer cancel()
 
 		var t int
-		resp, err := m.(*httpManipulator).send(
+		resp, err := m.(*httpManipulator).send( // nolint: bodyclose
 			manipulate.NewContext(
 				ctx,
 				manipulate.ContextOptionRetryFunc(func(i manipulate.RetryInfo) error {
@@ -1274,7 +1277,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(
+		resp, err := m.(*httpManipulator).send( // nolint: bodyclose
 			manipulate.NewContext(ctx),
 			http.MethodPost,
 			ts.URL,
@@ -1285,7 +1288,7 @@ func TestHTTP_send(t *testing.T) {
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotCommunicate{})
-		So(err.Error(), ShouldEqual, "Cannot communicate: Request Timeout")
+		So(err.Error(), ShouldEqual, "Cannot communicate: request timeout")
 		So(t, ShouldBeGreaterThan, 1)
 		So(rerr.Error(), ShouldEqual, err.Error())
 
@@ -1319,7 +1322,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(
+		resp, err := m.(*httpManipulator).send( // nolint: bodyclose
 			manipulate.NewContext(ctx),
 			http.MethodPost,
 			ts.URL,
@@ -1347,7 +1350,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(
+		resp, err := m.(*httpManipulator).send( // nolint: bodyclose
 			manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
 
 		So(err, ShouldNotBeNil)
@@ -1376,11 +1379,11 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotCommunicate{})
-		So(err.Error(), ShouldEqual, "Cannot communicate: Request Timeout")
+		So(err.Error(), ShouldEqual, "Cannot communicate: request timeout")
 
 		So(resp, ShouldBeNil)
 	})
@@ -1404,11 +1407,11 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotCommunicate{})
-		So(err.Error(), ShouldEqual, "Cannot communicate: Bad gateway")
+		So(err.Error(), ShouldEqual, "Cannot communicate: bad gateway")
 
 		So(resp, ShouldBeNil)
 	})
@@ -1432,11 +1435,11 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotCommunicate{})
-		So(err.Error(), ShouldEqual, "Cannot communicate: Service unavailable")
+		So(err.Error(), ShouldEqual, "Cannot communicate: service unavailable")
 
 		So(resp, ShouldBeNil)
 	})
@@ -1460,11 +1463,11 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotCommunicate{})
-		So(err.Error(), ShouldEqual, "Cannot communicate: Gateway timeout")
+		So(err.Error(), ShouldEqual, "Cannot communicate: gateway timeout")
 
 		So(resp, ShouldBeNil)
 	})
@@ -1488,11 +1491,11 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrTooManyRequests{})
-		So(err.Error(), ShouldEqual, "Too many requests: Too Many Requests")
+		So(err.Error(), ShouldEqual, "Too many requests: too many requests")
 
 		So(resp, ShouldBeNil)
 	})
@@ -1511,7 +1514,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err.Error(), ShouldEqual, "error 403 (): nope: boom")
@@ -1558,19 +1561,19 @@ func TestHTTP_send(t *testing.T) {
 		var eg errgroup.Group
 
 		eg.Go(func() error {
-			_, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+			_, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 			return err
 		})
 		eg.Go(func() error {
-			_, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+			_, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 			return err
 		})
 		eg.Go(func() error {
-			_, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+			_, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 			return err
 		})
 		eg.Go(func() error {
-			_, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+			_, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 			return err
 		})
 
@@ -1609,7 +1612,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err.Error(), ShouldEqual, "error 403 (): nope: boom")
@@ -1647,7 +1650,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		_, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		_, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(tmCalled, ShouldEqual, 1)
@@ -1672,11 +1675,11 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrLocked{})
-		So(err.Error(), ShouldEqual, "Cannot communicate: The api has been locked down by the server")
+		So(err.Error(), ShouldEqual, "Cannot communicate: the api has been locked down by the server")
 
 		So(resp, ShouldBeNil)
 
@@ -1701,7 +1704,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotUnmarshal{})
@@ -1729,7 +1732,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, elemental.Errors{})
@@ -1760,7 +1763,7 @@ func TestHTTP_send(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err.Error(), ShouldEqual, "simulated error")
@@ -1793,6 +1796,8 @@ func TestHTTP_send(t *testing.T) {
 
 		So(err, ShouldBeNil)
 		So(resp, ShouldNotBeNil)
+
+		defer func() { _ = resp.Body.Close() }()
 	})
 
 	Convey("Given the context cancels during the request", t, func() {
@@ -1813,7 +1818,7 @@ func TestHTTP_send(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp)
+		resp, err := m.(*httpManipulator).send(manipulate.NewContext(ctx), http.MethodPost, ts.URL, nil, nil, sp) // nolint: bodyclose
 
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, manipulate.ErrDisconnected{})

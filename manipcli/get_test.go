@@ -28,11 +28,10 @@ func Test_generateGetCommandForIdentity(t *testing.T) {
 			return nil
 		})
 
-		cmd, err := generateGetCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateGetCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return m, nil
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute with a json output", func() {
@@ -58,11 +57,10 @@ func Test_generateGetCommandForIdentity(t *testing.T) {
 
 	Convey("Given I generate a get command that returns an error", t, func() {
 
-		cmd, err := generateGetCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
+		cmd := generateGetCommandForIdentity(testmodel.TaskIdentity, testmodel.Manager(), func(opts ...maniphttp.Option) (manipulate.Manipulator, error) {
 			return nil, fmt.Errorf("boom")
 		})
 
-		So(err, ShouldEqual, nil)
 		assertCommandAndSetFlags(cmd)
 
 		Convey("When I call execute", func() {

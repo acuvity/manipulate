@@ -155,7 +155,7 @@ func TestDoIterFunc(t *testing.T) {
 
 		var called int
 		var ndata int
-		iter := func(data elemental.Identifiables) error {
+		iter := func(data elemental.Identifiables) error { // nolint: unparam
 			called++
 			ndata += len(data.List())
 			return nil
@@ -294,7 +294,7 @@ func TestDoIterFunc(t *testing.T) {
 				false,
 			)
 
-			Convey("Then err should be nil", func() {
+			Convey("Then err should not be nil", func() {
 				So(err, ShouldNotBeNil)
 				So(err.Error(), ShouldEqual, "unable to retrieve objects for iteration 1: boom")
 			})
@@ -314,7 +314,7 @@ func TestDoIterFunc(t *testing.T) {
 				data: makeData(45),
 			}
 
-			iter := func(data elemental.Identifiables) error {
+			iter := func(data elemental.Identifiables) error { // nolint: unparam
 				return fmt.Errorf("paf")
 			}
 

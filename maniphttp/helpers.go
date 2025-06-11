@@ -15,7 +15,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -125,9 +124,9 @@ func DirectSend(manipulator manipulate.Manipulator, mctx manipulate.Context, end
 	}
 
 	v := m.computeVersion(0, mctx.Version())
-	url := m.url + strings.Replace("/"+v+endpoint, "//", "/", -1)
+	url := m.url + strings.ReplaceAll("/"+v+endpoint, "//", "/")
 
-	sp := tracing.StartTrace(mctx, fmt.Sprintf("maniphttp.directsend"))
+	sp := tracing.StartTrace(mctx, "maniphttp.directsend")
 	defer sp.Finish()
 
 	return m.send(mctx, method, url, bytes.NewReader(body), nil, sp)
@@ -188,7 +187,7 @@ func BatchCreate(manipulator manipulate.Manipulator, mctx manipulate.Context, ob
 
 	url := m.getGeneralURL(objects[0], mctx.Version())
 
-	sp := tracing.StartTrace(mctx, fmt.Sprintf("maniphttp.batchcreate"))
+	sp := tracing.StartTrace(mctx, "maniphttp.batchcreate")
 	defer sp.Finish()
 
 	body := bytes.NewBuffer(nil)

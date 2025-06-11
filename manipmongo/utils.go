@@ -14,6 +14,7 @@ package manipmongo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -278,11 +279,12 @@ func spanErr(sp opentracing.Span, err error) error {
 // HandleQueryError handles the provided upstream error returned by Mongo by returning a corresponding manipulate error type.
 func HandleQueryError(err error) error {
 
-	if _, ok := err.(net.Error); ok {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
 		return manipulate.ErrCannotCommunicate{Err: err}
 	}
 
-	if err == mgo.ErrNotFound {
+	if errors.Is(err, mgo.ErrNotFound) {
 		return manipulate.ErrObjectNotFound{Err: fmt.Errorf("cannot find the object for the given ID")}
 	}
 
@@ -324,7 +326,7 @@ func HandleQueryError(err error) error {
 
 func getErrorCode(err error) int {
 
-	switch e := err.(type) {
+	switch e := err.(type) { // nolint: errorlint
 
 	case *mgo.QueryError:
 		return e.Code
@@ -372,7 +374,7 @@ func queryError(err error) (*mgo.QueryError, bool) {
 		return nil, false
 	}
 
-	switch e := err.(type) {
+	switch e := err.(type) { // nolint: errorlint
 	case *mgo.QueryError:
 		return e, true
 	case *mgo.BulkError:
@@ -405,7 +407,7 @@ func isConnectionError(err error) bool {
 
 	lowerCaseError := strings.ToLower(err.Error())
 	if lowerCaseError == errNoReachableServers ||
-		err == io.EOF ||
+		errors.Is(err, io.EOF) ||
 		strings.Contains(lowerCaseError, errLostConnection) ||
 		strings.Contains(lowerCaseError, errReplTimeoutPrefix) ||
 		strings.Contains(lowerCaseError, errCouldNotContactPrimaryPrefix) ||
@@ -522,21 +524,21 @@ func explain[T explainable](query T, operation elemental.Operation, identity ele
 
 	r := bson.M{}
 	if err := query.Explain(&r); err != nil {
-		return fmt.Errorf("unable to explain: %s", err)
+		return fmt.Errorf("unable to explain: %w", err)
 	}
 
 	f := "<none>"
 	if filter != nil {
 		fdata, err := json.MarshalIndent(filter, "", "  ")
 		if err != nil {
-			return fmt.Errorf("unable to marshal filter: %s", err)
+			return fmt.Errorf("unable to marshal filter: %w", err)
 		}
 		f = string(fdata)
 	}
 
 	rdata, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
-		return fmt.Errorf("unable to marshal explanation: %s", err)
+		return fmt.Errorf("unable to marshal explanation: %w", err)
 	}
 
 	fmt.Println("")

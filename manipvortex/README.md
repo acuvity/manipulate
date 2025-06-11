@@ -84,13 +84,13 @@ func NewMemoryDB(
         },
     }
 
-// Create a data store, register the identities and start it.
+    // Create a data store, register the identities and start it.
     datastore, err := memdbvortex.NewDatastore(indexConfig)
     if err != nil {
-        return nil, cancel, fmt.Errorf("failed to create local memory db: %s", err)
+        return nil, cancel, fmt.Errorf("failed to create local memory db: %w", err)
     }
 
-// Create the processors and the vortex.
+    // Create the processors and the vortex.
     processors := map[string]*config.ProcessorConfiguration{
         testmodel.ListIdentity.Name: &config.ProcessorConfiguration{
             Identity:         testmodel.ListIdentity,

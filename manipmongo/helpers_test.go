@@ -185,7 +185,7 @@ func TestRunQuery(t *testing.T) {
 		var imctx *manipulate.Context
 
 		f := func() (any, error) { return "hello", nil }
-		rf := func(i manipulate.RetryInfo) error {
+		rf := func(i manipulate.RetryInfo) error { // nolint: unparam
 			try = i.Try()
 			lastErr = i.Err()
 			m := i.Context()
@@ -240,7 +240,7 @@ func TestRunQuery(t *testing.T) {
 		var lastErr error
 		var imctx *manipulate.Context
 
-		rf := func(i manipulate.RetryInfo) error {
+		rf := func(i manipulate.RetryInfo) error { // nolint: unparam
 			try = i.Try()
 			lastErr = i.Err()
 			m := i.Context()
@@ -298,7 +298,7 @@ func TestRunQuery(t *testing.T) {
 		var identity elemental.Identity
 		var imctx *manipulate.Context
 
-		rf := func(i manipulate.RetryInfo) error {
+		rf := func(i manipulate.RetryInfo) error { // nolint: unparam
 			try = i.Try()
 			lastErr = i.Err()
 			m := i.Context()
@@ -476,7 +476,7 @@ func TestRunQuery(t *testing.T) {
 			return nil, &net.OpError{Err: fmt.Errorf("hello")}
 		}
 
-		rf := func(i manipulate.RetryInfo) error { return nil }
+		rf := func(i manipulate.RetryInfo) error { return nil } // nolint: unparam
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
@@ -496,7 +496,7 @@ func TestRunQuery(t *testing.T) {
 				},
 			)
 
-			Convey("Then err should be nil", func() {
+			Convey("Then err should not be nil", func() {
 				So(err, ShouldNotBeNil)
 				So(err.Error(), ShouldEqual, "Unable to execute query: context deadline exceeded")
 			})

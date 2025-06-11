@@ -24,10 +24,10 @@ func Snip(err error, token string) error {
 	}
 
 	return fmt.Errorf("%s",
-		strings.Replace(
+		strings.ReplaceAll(
 			err.Error(),
 			token,
 			"[snip]",
-			-1),
+		),
 	)
 }

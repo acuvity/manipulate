@@ -78,7 +78,7 @@ func CreateIndex(manipulator manipulate.Manipulator, identity elemental.Identity
 			index.Name = "index_" + identity.Name + "_" + strconv.Itoa(i)
 		}
 		if err := collection.EnsureIndex(index); err != nil {
-			return fmt.Errorf("unable to ensure index '%s': %s", index.Name, err)
+			return fmt.Errorf("unable to ensure index '%s': %w", index.Name, err)
 		}
 	}
 
@@ -118,17 +118,17 @@ func EnsureIndex(manipulator manipulate.Manipulator, identity elemental.Identity
 						{Name: "collMod", Value: collection.Name},
 						{Name: "index", Value: bson.M{"name": index.Name, "expireAfterSeconds": int(index.ExpireAfter.Seconds())}},
 					}, nil); err != nil {
-						return fmt.Errorf("cannot update TTL index: %s", err)
+						return fmt.Errorf("cannot update TTL index: %w", err)
 					}
 
 				} else {
 
 					if err := collection.DropIndexName(index.Name); err != nil {
-						return fmt.Errorf("cannot delete previous index: %s", err)
+						return fmt.Errorf("cannot delete previous index: %w", err)
 					}
 
 					if err := collection.EnsureIndex(index); err != nil {
-						return fmt.Errorf("unable to ensure index after dropping old one '%s': %s", index.Name, err)
+						return fmt.Errorf("unable to ensure index after dropping old one '%s': %w", index.Name, err)
 					}
 
 				}
@@ -136,7 +136,7 @@ func EnsureIndex(manipulator manipulate.Manipulator, identity elemental.Identity
 				continue
 			}
 
-			return fmt.Errorf("unable to ensure index '%s': %s", index.Name, err)
+			return fmt.Errorf("unable to ensure index '%s': %w", index.Name, err)
 		}
 	}
 

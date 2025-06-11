@@ -12,7 +12,7 @@ import (
 )
 
 // generateCountCommandForIdentity generates the command to count all objects based on its identity.
-func generateCountCommandForIdentity(identity elemental.Identity, modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) (*cobra.Command, error) {
+func generateCountCommandForIdentity(identity elemental.Identity, modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     identity.Name,
@@ -48,7 +48,7 @@ func generateCountCommandForIdentity(identity elemental.Identity, modelManager e
 			if fFilter != "" {
 				f, err := elemental.NewFilterFromString(fFilter)
 				if err != nil {
-					return fmt.Errorf("unable to parse filter %s: %s", fFilter, err)
+					return fmt.Errorf("unable to parse filter %s: %w", fFilter, err)
 				}
 				options = append(options, manipulate.ContextOptionFilter(f))
 			}
@@ -102,5 +102,5 @@ func generateCountCommandForIdentity(identity elemental.Identity, modelManager e
 	cmd.Flags().StringP(flagFilter, "f", "", "Query filter.")
 	cmd.Flags().StringP(flagParent, "", "", "Provide information about parent resource. Format `name/ID`")
 
-	return cmd, nil
+	return cmd
 }
