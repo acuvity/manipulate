@@ -1,11 +1,9 @@
 module go.acuvity.ai/manipulate
 
-go 1.23.0
-
-toolchain go1.24.0
+go 1.24.6
 
 require (
-	go.acuvity.ai/elemental v0.0.0-20250808161607-d482eed8147e
+	go.acuvity.ai/elemental v0.0.0-20250808163945-28b80d871aa7
 	go.acuvity.ai/regolithe v0.0.0-20250718005833-3569c82da647 // indirect
 	go.acuvity.ai/wsc v0.0.0-20250506232542-8de7ff436ec0
 )
