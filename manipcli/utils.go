@@ -367,7 +367,12 @@ func setViperFlagsWithPrefix(cmd *cobra.Command, specifiable elemental.Attribute
 
 		case "ref":
 			fv := rv.FieldByName(spec.ConvertedName)
-			instance := reflect.New(fv.Type().Elem())
+			var instance reflect.Value
+			if fv.Kind() == reflect.Pointer {
+				instance = reflect.New(fv.Type().Elem())
+			} else {
+				instance = reflect.New(fv.Type())
+			}
 
 			specifiable, ok := instance.Interface().(elemental.AttributeSpecifiable)
 			if !ok {
