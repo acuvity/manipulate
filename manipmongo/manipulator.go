@@ -15,6 +15,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"maps"
 	"net"
 	"time"
 
@@ -352,6 +353,11 @@ func (m *mongoManipulator) Create(mctx manipulate.Context, object elemental.Iden
 		}
 	}
 
+	// backport all default values that are empty.
+	if a, ok := object.(elemental.AttributeSpecifiable); ok {
+		elemental.ResetDefaultForZeroValues(a)
+	}
+
 	if operations, upsert := mctx.(opaquer).Opaque()[opaqueKeyUpsert]; upsert {
 
 		object.SetIdentifier("")
@@ -369,9 +375,7 @@ func (m *mongoManipulator) Create(mctx manipulate.Context, object elemental.Iden
 		if len(ops) > 0 {
 
 			if soi, ok := ops["$setOnInsert"]; ok {
-				for k, v := range soi.(bson.M) {
-					baseOps["$setOnInsert"].(bson.M)[k] = v
-				}
+				maps.Copy(baseOps["$setOnInsert"].(bson.M), soi.(bson.M))
 			}
 
 			for k, v := range ops {
@@ -493,6 +497,11 @@ func (m *mongoManipulator) Update(mctx manipulate.Context, object elemental.Iden
 				return spanErr(sp, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("update: unable to encrypt attributes: %w", err)})
 			}
 		}
+	}
+
+	// backport all default values that are empty.
+	if a, ok := object.(elemental.AttributeSpecifiable); ok {
+		elemental.ResetDefaultForZeroValues(a)
 	}
 
 	var filter bson.D
