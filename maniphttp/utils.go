@@ -17,6 +17,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"strconv"
@@ -41,14 +42,10 @@ func addQueryParameters(req *http.Request, ctx manipulate.Context) error {
 		if err != nil {
 			return err
 		}
-		for k, v := range query {
-			q[k] = v
-		}
+		maps.Copy(q, query)
 	}
 
-	for k, v := range ctx.Parameters() {
-		q[k] = v
-	}
+	maps.Copy(q, ctx.Parameters())
 
 	for _, order := range ctx.Order() {
 		q.Add("order", order)

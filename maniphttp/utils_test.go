@@ -75,6 +75,28 @@ func Test_addQueryParameters(t *testing.T) {
 			})
 		})
 
+		Convey("When I call the method addQueryParameters with a filter containing '&' and '?' and '\"'", func() {
+
+			f := elemental.NewFilterComposer().WithKey("name").Equals("\"toto & titi?\"").WithKey("description").Equals("hello").Done()
+
+			ctx := manipulate.NewContext(
+				context.Background(),
+				manipulate.ContextOptionFilter(
+					f,
+				),
+			)
+
+			err := addQueryParameters(request, ctx)
+
+			Convey("Then err should be nil", func() {
+				So(err, ShouldBeNil)
+			})
+
+			Convey("Then the query string should be correct ", func() {
+				So(request.URL.RawQuery, ShouldEqual, "q=name+%3D%3D+%22%5C%22toto+%26+titi%3F%5C%22%22+and+description+%3D%3D+%22hello%22")
+			})
+		})
+
 		Convey("When I call the method addQueryParameters with a order", func() {
 
 			ctx := manipulate.NewContext(
