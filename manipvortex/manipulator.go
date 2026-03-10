@@ -618,13 +618,13 @@ func (m *vortexManipulator) backgroundSync(ctx context.Context) {
 
 			if err := m.commitUpstream(t.Method, t.mctx, t.Object); err != nil {
 				m.RUnlock()
-				slog.Error("failed to commit object upstream", err)
+				slog.Error("failed to commit object upstream", "err", err)
 				continue
 			}
 
 			// Update the local copy of the object now.
 			if err := m.commitLocal(t.Method, t.mctx, t.Object); err != nil {
-				slog.Error("failed to commit object downstream", err)
+				slog.Error("failed to commit object downstream", "err", err)
 			}
 
 			m.RUnlock()
@@ -737,7 +737,7 @@ func (m *vortexManipulator) pushErrors(err error) {
 		select {
 		case s.subscriberErrorChannel <- err:
 		default:
-			slog.Error("Subscriber error channel is full", err)
+			slog.Error("Subscriber error channel is full", "err", err)
 		}
 	}
 }

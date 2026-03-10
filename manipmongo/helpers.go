@@ -12,27 +12,33 @@
 package manipmongo
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
 	"go.acuvity.ai/elemental"
 	"go.acuvity.ai/manipulate"
 	"go.acuvity.ai/manipulate/internal/backoff"
+	odbson "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	mongooptions "go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // DoesDatabaseExist checks if the database used by the given manipulator exists.
 func DoesDatabaseExist(manipulator manipulate.Manipulator) (bool, error) {
 
-	m, ok := manipulator.(*mongoManipulator)
-	if !ok {
-		panic("you can only pass a mongo manipulator to DoesDatabaseExist")
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return false, err
 	}
 
-	dbs, err := m.rootSession.DatabaseNames()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultGlobalContextTimeout)
+	defer cancel()
+
+	dbs, err := m.client.ListDatabaseNames(ctx, odbson.D{})
 	if err != nil {
 		return false, err
 	}
@@ -49,115 +55,42 @@ func DoesDatabaseExist(manipulator manipulate.Manipulator) (bool, error) {
 // DropDatabase drops the entire database used by the given manipulator.
 func DropDatabase(manipulator manipulate.Manipulator) error {
 
-	m, ok := manipulator.(*mongoManipulator)
-	if !ok {
-		panic("you can only pass a mongo manipulator to DropDatabase")
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return err
 	}
 
-	session := m.rootSession.Copy()
-	defer session.Close()
-
-	return session.DB(m.dbName).DropDatabase()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultGlobalContextTimeout)
+	defer cancel()
+	return m.client.Database(m.dbName).Drop(ctx)
 }
 
-// CreateIndex creates multiple mgo.Index for the collection storing info for the given identity using the given manipulator.
-func CreateIndex(manipulator manipulate.Manipulator, identity elemental.Identity, indexes ...mgo.Index) error {
-
-	m, ok := manipulator.(*mongoManipulator)
-	if !ok {
-		panic("you can only pass a mongo manipulator to CreateIndex")
-	}
-
-	session := m.rootSession.Copy()
-	defer session.Close()
-
-	collection := session.DB(m.dbName).C(identity.Name)
-
-	for i, index := range indexes {
-		if index.Name == "" {
-			index.Name = "index_" + identity.Name + "_" + strconv.Itoa(i)
-		}
-		if err := collection.EnsureIndex(index); err != nil {
-			return fmt.Errorf("unable to ensure index '%s': %w", index.Name, err)
-		}
-	}
-
-	return nil
+// CreateIndex creates indexes for the collection storing info for the given
+// identity using official-driver index models.
+func CreateIndex(manipulator manipulate.Manipulator, identity elemental.Identity, indexes ...mongo.IndexModel) error {
+	return createIndexesWithContext(context.Background(), manipulator, identity, indexes...)
 }
 
-// EnsureIndex works like create index, but it will delete existing index
-// if they changed before creating a new one.
-func EnsureIndex(manipulator manipulate.Manipulator, identity elemental.Identity, indexes ...mgo.Index) error {
-
-	m, ok := manipulator.(*mongoManipulator)
-	if !ok {
-		panic("you can only pass a mongo manipulator to CreateIndex")
-	}
-
-	session := m.rootSession.Copy()
-	session.SetMode(mgo.Strong, false)
-	session.EnsureSafe(&mgo.Safe{})
-
-	defer session.Close()
-
-	collection := session.DB(m.dbName).C(identity.Name)
-
-	for i, index := range indexes {
-		if index.Name == "" {
-			index.Name = "index_" + identity.Name + "_" + strconv.Itoa(i)
-		}
-		if err := collection.EnsureIndex(index); err != nil {
-
-			if strings.Contains(err.Error(), "already exists with different options") {
-
-				// In case we are changing a TTL we are using colMod instead
-				// as per https://docs.mongodb.com/manual/core/index-ttl/#restrictions
-				if index.ExpireAfter > 0 {
-
-					if err := collection.Database.Run(bson.D{
-						{Name: "collMod", Value: collection.Name},
-						{Name: "index", Value: bson.M{"name": index.Name, "expireAfterSeconds": int(index.ExpireAfter.Seconds())}},
-					}, nil); err != nil {
-						return fmt.Errorf("cannot update TTL index: %w", err)
-					}
-
-				} else {
-
-					if err := collection.DropIndexName(index.Name); err != nil {
-						return fmt.Errorf("cannot delete previous index: %w", err)
-					}
-
-					if err := collection.EnsureIndex(index); err != nil {
-						return fmt.Errorf("unable to ensure index after dropping old one '%s': %w", index.Name, err)
-					}
-
-				}
-
-				continue
-			}
-
-			return fmt.Errorf("unable to ensure index '%s': %w", index.Name, err)
-		}
-	}
-
-	return nil
+// EnsureIndex creates indexes, dropping/recreating conflicting indexes to
+// mirror legacy EnsureIndex behavior, using official-driver index models.
+func EnsureIndex(manipulator manipulate.Manipulator, identity elemental.Identity, indexes ...mongo.IndexModel) error {
+	return ensureIndexesWithContext(context.Background(), manipulator, identity, indexes...)
 }
 
-// DeleteIndex deletes multiple mgo.Index for the collection.
+// DeleteIndex drops indexes by name for the collection.
 func DeleteIndex(manipulator manipulate.Manipulator, identity elemental.Identity, indexes ...string) error {
 
-	m, ok := manipulator.(*mongoManipulator)
-	if !ok {
-		panic("you can only pass a mongo manipulator to DeleteIndex")
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return err
 	}
 
-	session := m.rootSession.Copy()
-	defer session.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), defaultGlobalContextTimeout)
+	defer cancel()
 
-	collection := session.DB(m.dbName).C(identity.Name)
-
+	indexView := m.client.Database(m.dbName).Collection(identity.Name).Indexes()
 	for _, index := range indexes {
-		if err := collection.DropIndexName(index); err != nil {
+		if err := indexView.DropOne(ctx, index); err != nil {
 			return err
 		}
 	}
@@ -165,54 +98,167 @@ func DeleteIndex(manipulator manipulate.Manipulator, identity elemental.Identity
 	return nil
 }
 
-// CreateCollection creates a collection using the given mgo.CollectionInfo.
-func CreateCollection(manipulator manipulate.Manipulator, identity elemental.Identity, info *mgo.CollectionInfo) error {
-
-	m, ok := manipulator.(*mongoManipulator)
-	if !ok {
-		panic("you can only pass a mongo manipulator to CreateCollection")
-	}
-
-	session := m.rootSession.Copy()
-	defer session.Close()
-
-	collection := session.DB(m.dbName).C(identity.Name)
-
-	return collection.Create(info)
+// CreateCollection creates a collection using official mongo driver options.
+func CreateCollection(
+	manipulator manipulate.Manipulator,
+	identity elemental.Identity,
+	opts ...mongooptions.Lister[mongooptions.CreateCollectionOptions],
+) error {
+	return createCollectionWithContext(context.Background(), manipulator, identity, opts...)
 }
 
-// GetDatabase returns a ready to use mgo.Database. Use at your own risks.
-// You are responsible for closing the session by calling the returner close function
-func GetDatabase(manipulator manipulate.Manipulator) (*mgo.Database, func(), error) {
+// createIndexesWithContext creates indexes for the given identity using the
+// official mongo-driver-backed manipulator and the provided context.
+func createIndexesWithContext(
+	ctx context.Context,
+	manipulator manipulate.Manipulator,
+	identity elemental.Identity,
+	indexes ...mongo.IndexModel,
+) error {
 
-	m, ok := manipulator.(*mongoManipulator)
-	if !ok {
-		panic("you can only pass a mongo manipulator to GetDatabase")
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return err
 	}
 
-	session := m.rootSession.Copy()
+	if len(indexes) == 0 {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
-	return session.DB(m.dbName), func() { session.Close() }, nil
+	_, err = m.client.Database(m.dbName).Collection(identity.Name).Indexes().CreateMany(ctx, indexes)
+	if err != nil {
+		return fmt.Errorf("unable to create indexes: %w", err)
+	}
+
+	return nil
 }
 
-// SetConsistencyMode sets the mongo consistency mode of the mongo session.
-func SetConsistencyMode(manipulator manipulate.Manipulator, mode mgo.Mode, refresh bool) {
+// ensureIndexesWithContext creates indexes with conflict handling using the
+// provided context for cancellation/deadline control.
+func ensureIndexesWithContext(
+	ctx context.Context,
+	manipulator manipulate.Manipulator,
+	identity elemental.Identity,
+	indexes ...mongo.IndexModel,
+) error {
 
-	m, ok := manipulator.(*mongoManipulator)
-	if !ok {
-		panic("you can only pass a mongo manipulator to SetConsistencyMode")
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return err
 	}
 
-	if m.rootSession == nil {
-		panic("cannot apply SetConsistencyMode. The root mongo session is not ready")
+	if len(indexes) == 0 {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
-	m.rootSession.SetMode(mode, refresh)
+	coll := m.client.Database(m.dbName).Collection(identity.Name)
+	indexView := coll.Indexes()
+
+	for i, index := range indexes {
+
+		preparedIndex, idxName, expireAfter, err := normalizeMongoIndexModel(identity, i, index)
+		if err != nil {
+			return fmt.Errorf("unable to prepare index %d: %w", i, err)
+		}
+
+		_, err = indexView.CreateOne(ctx, preparedIndex)
+		if err == nil {
+			continue
+		}
+
+		if !isMongoIndexConflictError(err) {
+			return fmt.Errorf("unable to ensure index '%s': %w", idxName, err)
+		}
+
+		// In case we are changing TTL we use collMod, same rationale as legacy EnsureIndex.
+		if expireAfter != nil && *expireAfter > 0 {
+			if err := coll.Database().RunCommand(ctx, odbson.D{
+				{Key: "collMod", Value: coll.Name()},
+				{Key: "index", Value: odbson.M{"name": idxName, "expireAfterSeconds": *expireAfter}},
+			}).Err(); err != nil {
+				return fmt.Errorf("cannot update TTL index '%s': %w", idxName, err)
+			}
+			continue
+		}
+
+		if err := indexView.DropOne(ctx, idxName); err != nil {
+			return fmt.Errorf("cannot delete previous index '%s': %w", idxName, err)
+		}
+		if _, err := indexView.CreateOne(ctx, preparedIndex); err != nil {
+			return fmt.Errorf("unable to ensure index after dropping old one '%s': %w", idxName, err)
+		}
+	}
+
+	return nil
+}
+
+// createCollectionWithContext creates a collection using official mongo driver
+// options and the provided context.
+func createCollectionWithContext(
+	ctx context.Context,
+	manipulator manipulate.Manipulator,
+	identity elemental.Identity,
+	opts ...mongooptions.Lister[mongooptions.CreateCollectionOptions],
+) error {
+
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return err
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if err := m.client.Database(m.dbName).CreateCollection(ctx, identity.Name, opts...); err != nil {
+		return fmt.Errorf("unable to create collection '%s': %w", identity.Name, err)
+	}
+
+	return nil
+}
+
+// GetDatabase returns a ready-to-use official-driver database object.
+func GetDatabase(manipulator manipulate.Manipulator) (*mongo.Database, error) {
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.client.Database(m.dbName), nil
+}
+
+// SetConsistencyMode sets default read/write consistency used by
+// the official-driver manipulator when contexts don't override it.
+func SetConsistencyMode(
+	manipulator manipulate.Manipulator,
+	readConsistency manipulate.ReadConsistency,
+	writeConsistency manipulate.WriteConsistency,
+) error {
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return err
+	}
+
+	m.setDefaultConsistency(readConsistency, writeConsistency)
+	return nil
 }
 
 // RunQuery runs a function that must run a mongodb operation.
-// It will retry in case of failure. This is an advanced helper can
-// be used when you get a session from using GetDatabase().
+// It will retry in case of failure.
 func RunQuery(mctx manipulate.Context, operationFunc func() (any, error), baseRetryInfo RetryInfo) (any, error) {
 
 	var try int
@@ -258,24 +304,44 @@ func RunQuery(mctx manipulate.Context, operationFunc func() (any, error), baseRe
 // SetAttributeEncrypter switch the attribute encrypter of the given mongo manipulator.
 // This is only useful in some rare cases like miugration, and it is not go routine safe.
 func SetAttributeEncrypter(manipulator manipulate.Manipulator, enc elemental.AttributeEncrypter) {
-
-	m, ok := manipulator.(*mongoManipulator)
-	if !ok {
+	if err := SetAttributeEncrypterSafe(manipulator, enc); err != nil {
 		panic("you can only pass a mongo manipulator to SetAttributeEncrypter")
 	}
-
-	m.attributeEncrypter = enc
 }
 
 // GetAttributeEncrypter returns the attribute encrypter of the given mongo manipulator..
 func GetAttributeEncrypter(manipulator manipulate.Manipulator) elemental.AttributeEncrypter {
-
-	m, ok := manipulator.(*mongoManipulator)
-	if !ok {
+	enc, err := GetAttributeEncrypterSafe(manipulator)
+	if err != nil {
 		panic("you can only pass a mongo manipulator to GetAttributeEncrypter")
 	}
 
-	return m.attributeEncrypter
+	return enc
+}
+
+// SetAttributeEncrypterSafe switches the attribute encrypter of the given
+// manipulator and returns a typed error for unsupported manipulator types.
+func SetAttributeEncrypterSafe(manipulator manipulate.Manipulator, enc elemental.AttributeEncrypter) error {
+
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return err
+	}
+
+	m.attributeEncrypter = enc
+	return nil
+}
+
+// GetAttributeEncrypterSafe returns the attribute encrypter of the given
+// manipulator and returns a typed error for unsupported manipulator types.
+func GetAttributeEncrypterSafe(manipulator manipulate.Manipulator) (elemental.AttributeEncrypter, error) {
+
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.attributeEncrypter, nil
 }
 
 // IsUpsert returns True if the mongo request is an Upsert operation, false otherwise.
@@ -284,9 +350,77 @@ func IsUpsert(mctx manipulate.Context) bool {
 	return upsert
 }
 
-// IsMongoManipulator returns true if this is a mongo manipulator
+// IsMongoManipulator returns true if manipulator is backed by the official
+// mongo-driver runtime.
 func IsMongoManipulator(manipulator manipulate.Manipulator) bool {
-	_, ok := manipulator.(*mongoManipulator)
+	_, ok := manipulator.(*mongoDriverManipulator)
 
 	return ok
+}
+
+func mongoDriverManipulatorFromAPI(manipulator manipulate.Manipulator) (*mongoDriverManipulator, error) {
+
+	m, ok := manipulator.(*mongoDriverManipulator)
+	if !ok {
+		return nil, fmt.Errorf("%w: got %T", ErrMongoAPIRequiresMongoManipulator, manipulator)
+	}
+
+	return m, nil
+}
+
+func normalizeMongoIndexModel(identity elemental.Identity, indexPos int, model mongo.IndexModel) (mongo.IndexModel, string, *int32, error) {
+
+	if model.Options == nil {
+		model.Options = mongooptions.Index()
+	}
+
+	applied, err := applyMongoIndexOptions(model.Options)
+	if err != nil {
+		return mongo.IndexModel{}, "", nil, err
+	}
+
+	idxName := ""
+	if applied.Name != nil {
+		idxName = *applied.Name
+	}
+	if idxName == "" {
+		idxName = "index_" + identity.Name + "_" + strconv.Itoa(indexPos)
+		model.Options.SetName(idxName)
+	}
+
+	return model, idxName, applied.ExpireAfterSeconds, nil
+}
+
+func applyMongoIndexOptions(builder *mongooptions.IndexOptionsBuilder) (*mongooptions.IndexOptions, error) {
+	opts := &mongooptions.IndexOptions{}
+	if builder == nil {
+		return opts, nil
+	}
+	for _, apply := range builder.List() {
+		if err := apply(opts); err != nil {
+			return nil, err
+		}
+	}
+	return opts, nil
+}
+
+func isMongoIndexConflictError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var cmdErr mongo.CommandError
+	if errors.As(err, &cmdErr) {
+		switch cmdErr.Code {
+		case 85, 86:
+			return true
+		}
+	}
+
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "already exists with different options") ||
+		strings.Contains(lower, "indexoptionsconflict") ||
+		strings.Contains(lower, "indexkeyspecsconflict") ||
+		strings.Contains(lower, "is reserved for the _id index") ||
+		strings.Contains(lower, "for an _id index specification")
 }

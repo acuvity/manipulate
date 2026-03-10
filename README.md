@@ -27,20 +27,31 @@ Parameters.
 
 ```go
 // Create a User from a generated Elemental model.
-user := models.NewUser() // always use the initializer to get various default value correctly set.
-user.FullName := "Antoine Mercadal"
-user.Login := "primalmotion"
+user := models.NewUser() // always use the initializer to get various default values correctly set.
+user.FullName = "Antoine Mercadal"
+user.Login = "primalmotion"
 
-// Create Mongo Manipulator.
-m := manipmongo.New("127.0.0.1", "test")
+// Create a Mongo manipulator.
+m, err := manipmongo.New("mongodb://127.0.0.1:27017", "test")
+if err != nil {
+    return err
+}
 
 // Then create the User.
-m.Create(nil, user)
+if err := m.Create(nil, user); err != nil {
+    return err
+}
 ```
 
-## Example for retreving an object
+## Example for retrieving an object
 
 ```go
+// Create a Mongo manipulator.
+m, err := manipmongo.New("mongodb://127.0.0.1:27017", "test")
+if err != nil {
+    return err
+}
+
 // Create a Context with a filter.
 ctx := manipulate.NewContextWithFilter(elemental.NewFilterComposer().
     WithKey("login").Equals("primalmotion").
@@ -49,5 +60,7 @@ ctx := manipulate.NewContextWithFilter(elemental.NewFilterComposer().
 
 // Retrieve the users matching the filter.
 var users models.UserLists
-m.RetrieveMany(ctx, &users)
+if err := m.RetrieveMany(ctx, &users); err != nil {
+    return err
+}
 ```

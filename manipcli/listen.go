@@ -81,7 +81,7 @@ func generateListenCommand(modelManager elemental.ModelManager, manipulatorMaker
 					case evt := <-subscriber.Events():
 						result, err := formatEvents(outputFormat, false, evt)
 						if err != nil {
-							slog.Error("unable to format event", err)
+							slog.Error("unable to format event", "err", err)
 						}
 
 						_, _ = fmt.Fprint(cmd.OutOrStdout(), result)
@@ -91,20 +91,20 @@ func generateListenCommand(modelManager elemental.ModelManager, manipulatorMaker
 						case manipulate.SubscriberStatusInitialConnection:
 							slog.Debug("status update", "status", "connected")
 						case manipulate.SubscriberStatusInitialConnectionFailure:
-							slog.Warn("status update", "status", "connect failed", pullErrorIfAny())
+							slog.Warn("status update", "status", "connect failed", "err", pullErrorIfAny())
 						case manipulate.SubscriberStatusDisconnection:
-							slog.Warn("status update", "status", "disconnected", pullErrorIfAny())
+							slog.Warn("status update", "status", "disconnected", "err", pullErrorIfAny())
 						case manipulate.SubscriberStatusReconnection:
 							slog.Info("status update", "status", "reconnected")
 						case manipulate.SubscriberStatusReconnectionFailure:
-							slog.Debug("status update", "status", "reconnection failed", pullErrorIfAny())
+							slog.Debug("status update", "status", "reconnection failed", "err", pullErrorIfAny())
 						case manipulate.SubscriberStatusFinalDisconnection:
 							slog.Debug("status update", "status", "terminated")
 							once.Do(func() { close(terminated) })
 						}
 
 					case err := <-subscriber.Errors():
-						slog.Error("Error received", err)
+						slog.Error("Error received", "err", err)
 					}
 				}
 			}()

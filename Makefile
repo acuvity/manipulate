@@ -3,6 +3,10 @@ SHELL := /bin/bash -o pipefail
 
 export GO111MODULE = on
 
+MONGO_TEST_MATRIX_LEGACY_IMAGE ?= mongo:4.4.26
+MONGO_TEST_MATRIX_LATEST_IMAGE ?= mongo:latest
+MONGO_TEST_MATRIX_LATEST_PATTERN ?= ^(TestOfficialManipulatorCRUDAndHelpersWithMemongo|TestMongoHelpersWithContextAcceptNilContext)$
+
 default: lint test
 
 install-tools:
@@ -28,6 +32,15 @@ lint:
 
 test:
 	go test ./... -vet off -race -cover -covermode=atomic -coverprofile=unit_coverage.out
+
+test-mongo-legacy:
+	env -u DOCKER_HOST REQUIRE_MONGO=1 MONGO_TEST_DOCKER_IMAGE=$(MONGO_TEST_MATRIX_LEGACY_IMAGE) go test ./manipmongo/... -count=1
+
+test-mongo-latest:
+	env -u DOCKER_HOST REQUIRE_MONGO=1 MONGO_TEST_DOCKER_IMAGE=$(MONGO_TEST_MATRIX_LATEST_IMAGE) go test ./manipmongo -run '$(MONGO_TEST_MATRIX_LATEST_PATTERN)' -count=1
+	env -u DOCKER_HOST REQUIRE_MONGO=1 MONGO_TEST_DOCKER_IMAGE=$(MONGO_TEST_MATRIX_LATEST_IMAGE) go test ./manipmongo/internal -count=1
+
+test-mongo-matrix: test-mongo-legacy test-mongo-latest
 
 sec:
 	gosec -quiet ./...
