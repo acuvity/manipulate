@@ -15,9 +15,9 @@ import (
 	"crypto/tls"
 	"time"
 
-	"github.com/globalsign/mgo/bson"
 	"go.acuvity.ai/elemental"
 	"go.acuvity.ai/manipulate"
+	bson "go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // An Option represents a maniphttp.Manipulator option.
@@ -33,7 +33,7 @@ type config struct {
 	socketTimeout       time.Duration
 	readConsistency     manipulate.ReadConsistency
 	writeConsistency    manipulate.WriteConsistency
-	sharder             Sharder
+	sharderMongo        Sharder
 	defaultRetryFunc    manipulate.RetryFunc
 	forcedReadFilter    bson.D
 	attributeEncrypter  elemental.AttributeEncrypter
@@ -68,6 +68,7 @@ func OptionTLS(tlsConfig *tls.Config) Option {
 }
 
 // OptionConnectionPoolLimit sets maximum size of the connection pool.
+// Passing 0 applies the package default (4096), preserving legacy behavior.
 func OptionConnectionPoolLimit(poolLimit int) Option {
 	return func(c *config) {
 		c.poolLimit = poolLimit
@@ -102,10 +103,10 @@ func OptionDefaultWriteConsistencyMode(consistency manipulate.WriteConsistency) 
 	}
 }
 
-// OptionSharder sets the sharder.
+// OptionSharder sets the official mongo-driver sharder.
 func OptionSharder(sharder Sharder) Option {
 	return func(c *config) {
-		c.sharder = sharder
+		c.sharderMongo = sharder
 	}
 }
 
@@ -117,8 +118,8 @@ func OptionDefaultRetryFunc(f manipulate.RetryFunc) Option {
 	}
 }
 
-// OptionForceReadFilter allows to set a bson.D filter that
-// will always reducing the scope of the reads to that filter.
+// OptionForceReadFilter allows setting a bson.D filter that will always reduce
+// the scope of reads to that filter.
 func OptionForceReadFilter(f bson.D) Option {
 	return func(c *config) {
 		c.forcedReadFilter = f
@@ -183,7 +184,7 @@ type opaquer interface {
 	Opaque() map[string]any
 }
 
-// ContextOptionUpsert tells to use upsert for an Create operation.
+// ContextOptionUpsert tells to use upsert for a Create operation.
 // The given operation will be executed for the upsert command.
 // You cannot use "$set" which is always set to be the identifier.
 // If you do so, ContextOptionUpsert will panic.

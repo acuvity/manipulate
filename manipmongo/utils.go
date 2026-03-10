@@ -18,16 +18,18 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 	"strings"
 	"time"
 
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 	"go.acuvity.ai/elemental"
 	"go.acuvity.ai/manipulate"
-	"go.acuvity.ai/manipulate/internal/objectid"
+	bson "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
+	"go.mongodb.org/mongo-driver/v2/mongo/writeconcern"
 )
 
 const (
@@ -72,18 +74,89 @@ func applyOrdering(order []string, spec elemental.AttributeSpecifiable) []string
 	return o
 }
 
-func makePreviousRetriever(c *mgo.Collection) func(id bson.ObjectId) (bson.M, error) {
+func makePreviousRetriever(collection any) func(id bson.ObjectID) (bson.M, error) {
 
-	return func(id bson.ObjectId) (bson.M, error) {
-		doc := bson.M{}
-		if err := c.FindId(id).One(&doc); err != nil {
-			return nil, err
+	return func(id bson.ObjectID) (bson.M, error) {
+		if coll, ok := collection.(*mongo.Collection); ok {
+			doc := bson.M{}
+			if err := coll.FindOne(context.Background(), bson.D{{Key: "_id", Value: id}}).Decode(&doc); err != nil {
+				return nil, err
+			}
+			return doc, nil
 		}
-		return doc, nil
+
+		return makePreviousRetrieverByReflection(collection, id)
 	}
 }
 
-func makeShardingManyFilter(m *mongoManipulator, mctx manipulate.Context, identity elemental.Identity) (bson.D, error) {
+func makePreviousRetrieverByReflection(collection any, id bson.ObjectID) (bson.M, error) {
+	if collection == nil {
+		return nil, fmt.Errorf("collection is nil")
+	}
+
+	collectionValue := reflect.ValueOf(collection)
+	findByIDMethod := collectionValue.MethodByName("FindId")
+	if !findByIDMethod.IsValid() {
+		return nil, fmt.Errorf("unsupported collection type %T: missing FindId method", collection)
+	}
+	if findByIDMethod.Type().NumIn() != 1 {
+		return nil, fmt.Errorf("unsupported FindId signature on %T", collection)
+	}
+
+	idArgument, err := convertObjectIDForMethod(id, findByIDMethod.Type().In(0))
+	if err != nil {
+		return nil, err
+	}
+
+	queryResults := findByIDMethod.Call([]reflect.Value{idArgument})
+	if len(queryResults) != 1 {
+		return nil, fmt.Errorf("unsupported FindId result arity on %T", collection)
+	}
+
+	queryValue := queryResults[0]
+	oneMethod := queryValue.MethodByName("One")
+	if !oneMethod.IsValid() {
+		return nil, fmt.Errorf("unsupported query type %s: missing One method", queryValue.Type())
+	}
+
+	doc := bson.M{}
+	oneResults := oneMethod.Call([]reflect.Value{reflect.ValueOf(&doc)})
+	if len(oneResults) != 1 {
+		return nil, fmt.Errorf("unsupported One result arity on %T", collection)
+	}
+
+	if oneErr := oneResults[0].Interface(); oneErr != nil {
+		if typedErr, ok := oneErr.(error); ok {
+			return nil, typedErr
+		}
+		return nil, fmt.Errorf("query failed with non-error type %T", oneErr)
+	}
+
+	return doc, nil
+}
+
+func convertObjectIDForMethod(id bson.ObjectID, targetType reflect.Type) (reflect.Value, error) {
+	mongoObjectIDType := reflect.TypeOf(id)
+	if mongoObjectIDType.AssignableTo(targetType) {
+		return reflect.ValueOf(id), nil
+	}
+	if mongoObjectIDType.ConvertibleTo(targetType) {
+		return reflect.ValueOf(id).Convert(targetType), nil
+	}
+
+	hexType := reflect.TypeOf("")
+	hexValue := reflect.ValueOf(id.Hex())
+	if hexType.AssignableTo(targetType) {
+		return hexValue, nil
+	}
+	if hexType.ConvertibleTo(targetType) {
+		return hexValue.Convert(targetType), nil
+	}
+
+	return reflect.Value{}, fmt.Errorf("cannot convert mongo object id for target type %s", targetType)
+}
+
+func makeShardingManyFilter(m *mongoDriverManipulator, mctx manipulate.Context, identity elemental.Identity) (bson.D, error) {
 
 	if m.sharder == nil {
 		return nil, nil
@@ -97,7 +170,7 @@ func makeShardingManyFilter(m *mongoManipulator, mctx manipulate.Context, identi
 	return sq, nil
 }
 
-func makeShardingOneFilter(m *mongoManipulator, mctx manipulate.Context, object elemental.Identifiable) (bson.D, error) {
+func makeShardingOneFilter(m *mongoDriverManipulator, mctx manipulate.Context, object elemental.Identifiable) (bson.D, error) {
 
 	if m.sharder == nil {
 		return nil, nil
@@ -145,61 +218,60 @@ func makeUserFilter(mctx manipulate.Context, attrSpec elemental.AttributeSpecifi
 
 func makePipeline(
 	attrSpec elemental.AttributeSpecifiable,
-	retriever func(id bson.ObjectId) (bson.M, error),
+	retriever func(id bson.ObjectID) (bson.M, error),
 	shardFilter bson.D,
-	namespaceFiler bson.D,
+	namespaceFilter bson.D,
 	forcedReadFilter bson.D,
 	userFilter bson.D,
 	order []string,
 	after string,
 	limit int,
 	fields []string,
-) ([]bson.M, error) {
+) ([]any, error) {
 
-	pipe := []bson.M{}
+	pipe := []any{}
 
-	// Add sharding match
-	if shardFilter != nil {
-		pipe = append(pipe, bson.M{"$match": shardFilter})
+	// Add sharding match.
+	if len(shardFilter) > 0 {
+		pipe = append(pipe, bson.D{{Key: "$match", Value: shardFilter}})
 	}
 
-	// Add namespace match
-	if namespaceFiler != nil {
-		pipe = append(pipe, bson.M{"$match": namespaceFiler})
+	// Add namespace match.
+	if len(namespaceFilter) > 0 {
+		pipe = append(pipe, bson.D{{Key: "$match", Value: namespaceFilter}})
 	}
 
-	// Add forced match
-	if forcedReadFilter != nil {
-		pipe = append(pipe, bson.M{"$match": forcedReadFilter})
+	// Add forced match.
+	if len(forcedReadFilter) > 0 {
+		pipe = append(pipe, bson.D{{Key: "$match", Value: forcedReadFilter}})
 	}
 
-	// Ordering
+	// Ordering.
 	if len(order) == 0 && after != "" {
 		order = []string{"_id"}
 	}
 
 	if len(order) > 0 {
 
-		var id bson.ObjectId
+		id := bson.NilObjectID
 		doc := bson.M{}
-		match := []bson.M{}
+		match := []bson.D{}
 		sort := bson.D{}
 		hasID := false
 
-		// If we have an after, we get the previous object info
+		// If we have an after, we get the previous object info.
 		if after != "" {
 
-			if oid, ok := objectid.Parse(after); ok {
-				id = oid
-			} else {
+			oid, err := bson.ObjectIDFromHex(after)
+			if err != nil {
 				return nil, HandleQueryError(fmt.Errorf("after '%s' is not parsable objectId", after))
 			}
+			id = oid
 
-			var err error
-			if doc, err = retriever(id); err != nil {
+			doc, err = retriever(id)
+			if err != nil {
 				return nil, HandleQueryError(fmt.Errorf("unable to retrieve previous object with after id '%s': %w", after, err))
 			}
-
 			if doc == nil {
 				return nil, HandleQueryError(fmt.Errorf("unable to retrieve previous object with after id '%s': not found", after))
 			}
@@ -209,58 +281,54 @@ func makePipeline(
 		for _, f := range order {
 
 			cmp, op := 1, "$gt"
-			if strings.HasPrefix(f, "-") {
-				cmp, op, f = -1, "$lt", strings.TrimPrefix(f, "-")
+			if strings.HasPrefix(f, descendingOrderPrefix) {
+				cmp, op, f = -1, "$lt", strings.TrimPrefix(f, descendingOrderPrefix)
 			}
 
 			hasID = hasID || f == "_id"
-
-			sort = append(sort, bson.DocElem{Name: f, Value: cmp})
+			sort = append(sort, bson.E{Key: f, Value: cmp})
 
 			if after != "" {
 				if f == "_id" {
-					match = append(match,
-						bson.M{"_id": bson.M{"$gt": id}},
-					)
+					match = append(match, bson.D{{Key: "_id", Value: bson.D{{Key: "$gt", Value: id}}}})
 				} else {
 					match = append(match,
-						bson.M{
-							"$or": []any{
-								bson.M{f: bson.M{op: doc[f]}},
-								bson.M{f: doc[f], "_id": bson.M{"$gt": id}},
+						bson.D{{
+							Key: "$or",
+							Value: []bson.D{
+								{{Key: f, Value: bson.D{{Key: op, Value: doc[f]}}}},
+								{{Key: f, Value: doc[f]}, {Key: "_id", Value: bson.D{{Key: "$gt", Value: id}}}},
 							},
-						},
+						}},
 					)
 				}
 			}
 		}
 
 		if !hasID {
-			sort = append(sort, bson.DocElem{Name: "_id", Value: 1})
+			sort = append(sort, bson.E{Key: "_id", Value: 1})
 		}
 
-		pipe = append(pipe, bson.M{"$sort": sort})
+		pipe = append(pipe, bson.D{{Key: "$sort", Value: sort}})
 
 		if after != "" {
-			pipe = append(pipe, bson.M{
-				"$match": bson.M{"$and": match},
-			})
+			pipe = append(pipe, bson.D{{Key: "$match", Value: bson.D{{Key: "$and", Value: match}}}})
 		}
 	}
 
-	// User filtering
-	if userFilter != nil {
-		pipe = append(pipe, bson.M{"$match": userFilter})
+	// User filtering.
+	if len(userFilter) > 0 {
+		pipe = append(pipe, bson.D{{Key: "$match", Value: userFilter}})
 	}
 
-	// Limiting
+	// Limiting.
 	if limit > 0 {
-		pipe = append(pipe, bson.M{"$limit": limit})
+		pipe = append(pipe, bson.D{{Key: "$limit", Value: limit}})
 	}
 
-	// Fields
+	// Fields.
 	if sels := makeFieldsSelector(fields, attrSpec); sels != nil {
-		pipe = append(pipe, bson.M{"$project": sels})
+		pipe = append(pipe, bson.D{{Key: "$project", Value: sels}})
 	}
 
 	return pipe, nil
@@ -284,11 +352,11 @@ func HandleQueryError(err error) error {
 		return manipulate.ErrCannotCommunicate{Err: err}
 	}
 
-	if errors.Is(err, mgo.ErrNotFound) {
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return manipulate.ErrObjectNotFound{Err: fmt.Errorf("cannot find the object for the given ID")}
 	}
 
-	if mgo.IsDup(err) {
+	if mongo.IsDuplicateKeyError(err) {
 		return manipulate.ErrConstraintViolation{Err: fmt.Errorf("duplicate key")}
 	}
 
@@ -296,20 +364,20 @@ func HandleQueryError(err error) error {
 		return manipulate.ErrCannotCommunicate{Err: err}
 	}
 
-	if ok, err := invalidQuery(err); ok {
-		return err
+	if ok, invalidErr := invalidQuery(err); ok {
+		return invalidErr
 	}
 
 	// see https://github.com/mongodb/mongo/blob/master/src/mongo/base/error_codes.err
 	switch getErrorCode(err) {
 	case 6, 7, 71, 74, 91, 109, 189, 202, 216, 262, 10107, 13436, 13435, 11600, 11602:
 		// HostUnreachable
-		// HostNotFound,
-		// ReplicaSetNotFound,
-		// NodeNotFound,
-		// ConfigurationInProgress,
+		// HostNotFound
+		// ReplicaSetNotFound
+		// NodeNotFound
+		// ConfigurationInProgress
 		// ShutdownInProgress
-		// PrimarySteppedDown,
+		// PrimarySteppedDown
 		// NetworkInterfaceExceededTimeLimit
 		// ElectionInProgress
 		// ExceededTimeLimit
@@ -324,23 +392,33 @@ func HandleQueryError(err error) error {
 	}
 }
 
-func getErrorCode(err error) int {
+type mongoQueryError struct {
+	Code    int
+	Message string
+	Err     error
+}
 
-	switch e := err.(type) { // nolint: errorlint
-
-	case *mgo.QueryError:
-		return e.Code
-
-	case *mgo.LastError:
-		return e.Code
-
-	case *mgo.BulkError:
-		// we just get the first
-		for _, c := range e.Cases() {
-			return getErrorCode(c.Err)
-		}
+func (e *mongoQueryError) Error() string {
+	if e == nil {
+		return ""
 	}
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return e.Message
+}
 
+func (e *mongoQueryError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+func getErrorCode(err error) int {
+	if qErr, ok := queryError(err); ok {
+		return qErr.Code
+	}
 	return 0
 }
 
@@ -368,18 +446,43 @@ func invalidQuery(err error) (bool, error) {
 	}
 }
 
-func queryError(err error) (*mgo.QueryError, bool) {
+func queryError(err error) (*mongoQueryError, bool) {
 
 	if err == nil {
 		return nil, false
 	}
 
-	switch e := err.(type) { // nolint: errorlint
-	case *mgo.QueryError:
-		return e, true
-	case *mgo.BulkError:
-		for _, c := range e.Cases() {
-			return queryError(c.Err)
+	var commandErr mongo.CommandError
+	if errors.As(err, &commandErr) {
+		return &mongoQueryError{Code: int(commandErr.Code), Message: commandErr.Message, Err: commandErr}, true
+	}
+
+	var writeErr mongo.WriteError
+	if errors.As(err, &writeErr) {
+		return &mongoQueryError{Code: writeErr.Code, Message: writeErr.Message, Err: writeErr}, true
+	}
+
+	var writeException mongo.WriteException
+	if errors.As(err, &writeException) {
+		if len(writeException.WriteErrors) > 0 {
+			we := writeException.WriteErrors[0]
+			return &mongoQueryError{Code: we.Code, Message: we.Message, Err: we}, true
+		}
+		if writeException.WriteConcernError != nil {
+			wce := writeException.WriteConcernError
+			return &mongoQueryError{Code: wce.Code, Message: wce.Message, Err: wce}, true
+		}
+	}
+
+	var bulkWriteException mongo.BulkWriteException
+	if errors.As(err, &bulkWriteException) {
+		if len(bulkWriteException.WriteErrors) > 0 {
+			we := bulkWriteException.WriteErrors[0]
+			return &mongoQueryError{Code: we.Code, Message: we.Message, Err: we}, true
+		}
+		if bulkWriteException.WriteConcernError != nil {
+			wce := bulkWriteException.WriteConcernError
+			return &mongoQueryError{Code: wce.Code, Message: wce.Message, Err: wce}, true
 		}
 	}
 
@@ -390,6 +493,10 @@ func isConnectionError(err error) bool {
 
 	if err == nil {
 		return false
+	}
+
+	if mongo.IsNetworkError(err) {
+		return true
 	}
 
 	// Stolen from mongodb code. this is ugly.
@@ -458,34 +565,12 @@ func makeFieldsSelector(fields []string, spec elemental.AttributeSpecifiable) bs
 	return sels
 }
 
-func convertReadConsistency(c manipulate.ReadConsistency) mgo.Mode {
-	switch c {
-	case manipulate.ReadConsistencyEventual:
-		return mgo.Eventual
-	case manipulate.ReadConsistencyMonotonic:
-		return mgo.Monotonic
-	case manipulate.ReadConsistencyNearest:
-		return mgo.Nearest
-	case manipulate.ReadConsistencyStrong:
-		return mgo.Strong
-	case manipulate.ReadConsistencyWeakest:
-		return mgo.SecondaryPreferred
-	default:
-		return -1
-	}
+func convertReadConsistency(c manipulate.ReadConsistency) *readpref.ReadPref {
+	return convertReadPreferenceMongo(c)
 }
 
-func convertWriteConsistency(c manipulate.WriteConsistency) *mgo.Safe {
-	switch c {
-	case manipulate.WriteConsistencyNone:
-		return nil
-	case manipulate.WriteConsistencyStrong:
-		return &mgo.Safe{WMode: "majority"}
-	case manipulate.WriteConsistencyStrongest:
-		return &mgo.Safe{WMode: "majority", J: true}
-	default:
-		return &mgo.Safe{}
-	}
+func convertWriteConsistency(c manipulate.WriteConsistency) *writeconcern.WriteConcern {
+	return convertWriteConcernMongo(c)
 }
 
 type explainable interface {
@@ -494,7 +579,7 @@ type explainable interface {
 
 func explainIfNeeded[T explainable](
 	query T,
-	filter bson.D,
+	filter any,
 	identity elemental.Identity,
 	operation elemental.Operation,
 	explainMap map[elemental.Identity]map[elemental.Operation]struct{},
@@ -520,7 +605,7 @@ func explainIfNeeded[T explainable](
 	return nil
 }
 
-func explain[T explainable](query T, operation elemental.Operation, identity elemental.Identity, filter bson.D) error {
+func explain[T explainable](query T, operation elemental.Operation, identity elemental.Identity, filter any) error {
 
 	r := bson.M{}
 	if err := query.Explain(&r); err != nil {
