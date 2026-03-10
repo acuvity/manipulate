@@ -32,11 +32,16 @@
 //	user := models.NewUser()
 //	user.FullName, user.Login := "Antoine Mercadal", "primalmotion"
 //
-//	// Create Mongo Manipulator.
-//	m := manipmongo.NewMongoManipulator([]{"127.0.0.1"}, "test", "db-username", "db-password", "db-authsource", 512)
+//	// Create Mongo manipulator.
+//	m, err := manipmongo.New("mongodb://db-username:db-password@127.0.0.1:27017/test?authSource=db-authsource", "test")
+//	if err != nil {
+//	    panic(err)
+//	}
 //
 //	// Then create the User.
-//	m.Create(nil, user)
+//	if err := m.Create(nil, user); err != nil {
+//	    panic(err)
+//	}
 //
 // Example for retreving an object:
 //

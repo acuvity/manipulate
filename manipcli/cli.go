@@ -185,7 +185,7 @@ func New(modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker,
 		} else {
 			slog.Debug("unable to generate create command for identity",
 				"identity", identity.Name,
-				err,
+				"err", err,
 			)
 		}
 
@@ -194,7 +194,7 @@ func New(modelManager elemental.ModelManager, manipulatorMaker ManipulatorMaker,
 		} else {
 			slog.Debug("unable to generate update command for identity",
 				"identity", identity.Name,
-				err,
+				"err", err,
 			)
 		}
 
