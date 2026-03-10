@@ -304,24 +304,44 @@ func RunQuery(mctx manipulate.Context, operationFunc func() (any, error), baseRe
 // SetAttributeEncrypter switch the attribute encrypter of the given mongo manipulator.
 // This is only useful in some rare cases like miugration, and it is not go routine safe.
 func SetAttributeEncrypter(manipulator manipulate.Manipulator, enc elemental.AttributeEncrypter) {
-
-	m, ok := manipulator.(*mongoDriverManipulator)
-	if !ok {
+	if err := SetAttributeEncrypterSafe(manipulator, enc); err != nil {
 		panic("you can only pass a mongo manipulator to SetAttributeEncrypter")
 	}
-
-	m.attributeEncrypter = enc
 }
 
 // GetAttributeEncrypter returns the attribute encrypter of the given mongo manipulator..
 func GetAttributeEncrypter(manipulator manipulate.Manipulator) elemental.AttributeEncrypter {
-
-	m, ok := manipulator.(*mongoDriverManipulator)
-	if !ok {
+	enc, err := GetAttributeEncrypterSafe(manipulator)
+	if err != nil {
 		panic("you can only pass a mongo manipulator to GetAttributeEncrypter")
 	}
 
-	return m.attributeEncrypter
+	return enc
+}
+
+// SetAttributeEncrypterSafe switches the attribute encrypter of the given
+// manipulator and returns a typed error for unsupported manipulator types.
+func SetAttributeEncrypterSafe(manipulator manipulate.Manipulator, enc elemental.AttributeEncrypter) error {
+
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return err
+	}
+
+	m.attributeEncrypter = enc
+	return nil
+}
+
+// GetAttributeEncrypterSafe returns the attribute encrypter of the given
+// manipulator and returns a typed error for unsupported manipulator types.
+func GetAttributeEncrypterSafe(manipulator manipulate.Manipulator) (elemental.AttributeEncrypter, error) {
+
+	m, err := mongoDriverManipulatorFromAPI(manipulator)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.attributeEncrypter, nil
 }
 
 // IsUpsert returns True if the mongo request is an Upsert operation, false otherwise.
@@ -330,7 +350,8 @@ func IsUpsert(mctx manipulate.Context) bool {
 	return upsert
 }
 
-// IsMongoManipulator returns true if this is a mongo manipulator.
+// IsMongoManipulator returns true if manipulator is backed by the official
+// mongo-driver runtime.
 func IsMongoManipulator(manipulator manipulate.Manipulator) bool {
 	_, ok := manipulator.(*mongoDriverManipulator)
 
@@ -341,7 +362,7 @@ func mongoDriverManipulatorFromAPI(manipulator manipulate.Manipulator) (*mongoDr
 
 	m, ok := manipulator.(*mongoDriverManipulator)
 	if !ok {
-		return nil, fmt.Errorf("you can only pass a mongo manipulator: got %T", manipulator)
+		return nil, fmt.Errorf("%w: got %T", ErrMongoAPIRequiresMongoManipulator, manipulator)
 	}
 
 	return m, nil

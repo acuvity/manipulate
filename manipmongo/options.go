@@ -13,6 +13,7 @@ package manipmongo
 
 import (
 	"crypto/tls"
+	"errors"
 	"time"
 
 	"go.acuvity.ai/elemental"
@@ -191,20 +192,38 @@ type opaquer interface {
 // If you use $setOnInsert, you must not set _id. If you do so,
 // it will panic.
 func ContextOptionUpsert(operations bson.M) manipulate.ContextOption {
+	opt, err := ContextOptionUpsertSafe(operations)
+	if err != nil {
+		panic(err.Error())
+	}
+	return opt
+}
+
+// ContextOptionUpsertSafe is the error-returning variant of ContextOptionUpsert.
+// It performs the same validations without panicking.
+func ContextOptionUpsertSafe(operations bson.M) (manipulate.ContextOption, error) {
+	return contextOptionUpsertMongoSafe(operations)
+}
+
+func contextOptionUpsertMongoSafe(operations bson.M) (manipulate.ContextOption, error) {
 
 	if _, ok := operations["$set"]; ok {
-		panic("cannot use $set in upsert operations")
+		return nil, errors.New("cannot use $set in upsert operations")
 	}
 
 	if soi, ok := operations["$setOnInsert"]; ok {
-		for k := range soi.(bson.M) {
+		soiMap, ok := soi.(bson.M)
+		if !ok {
+			return nil, errors.New("$setOnInsert in upsert operations must be of type bson.M")
+		}
+		for k := range soiMap {
 			if k == "_id" {
-				panic("cannot use $setOnInsert on _id in upsert operations")
+				return nil, errors.New("cannot use $setOnInsert on _id in upsert operations")
 			}
 		}
 	}
 
 	return func(c manipulate.Context) {
 		c.(opaquer).Opaque()[opaqueKeyUpsert] = operations
-	}
+	}, nil
 }
