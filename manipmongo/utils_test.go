@@ -1,1628 +1,639 @@
-// Copyright 2019 Aporeto Inc.
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//     http://www.apache.org/licenses/LICENSE-2.0
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package manipmongo
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
-	"github.com/golang/mock/gomock"
-	. "github.com/smartystreets/goconvey/convey"
 	"go.acuvity.ai/elemental"
-	testmodel "go.acuvity.ai/elemental/test/model"
 	"go.acuvity.ai/manipulate"
-	"go.acuvity.ai/manipulate/internal/objectid"
-	"go.acuvity.ai/manipulate/manipmongo/internal"
+	bson "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
+	"go.mongodb.org/mongo-driver/v2/mongo/writeconcern"
 )
 
-func Test_HandleQueryError(t *testing.T) {
-	type args struct {
-		err error
-	}
+func TestWorkerAHandleQueryErrorMappings(t *testing.T) {
 	tests := []struct {
-		name      string
-		args      args
-		errString string
+		name   string
+		err    error
+		assert func(t *testing.T, got error)
 	}{
 		{
-			"error 2",
-			args{
-				&mgo.QueryError{
-					Code:    2,
-					Message: errInvalidQueryBadRegex,
-				},
+			name: "network_error",
+			err:  &net.OpError{Op: "dial", Err: errors.New("boom")},
+			assert: func(t *testing.T, got error) {
+				t.Helper()
+				if !manipulate.IsCannotCommunicateError(got) {
+					t.Fatalf("expected ErrCannotCommunicate, got %T (%v)", got, got)
+				}
 			},
-			"Query invalid: $regex has to be a string",
 		},
 		{
-			"error 51091",
-			args{
-				&mgo.QueryError{
-					Code:    51091,
-					Message: errInvalidQueryInvalidRegex,
-				},
+			name: "not_found",
+			err:  mongo.ErrNoDocuments,
+			assert: func(t *testing.T, got error) {
+				t.Helper()
+				var target manipulate.ErrObjectNotFound
+				if !errors.As(got, &target) {
+					t.Fatalf("expected ErrObjectNotFound, got %T (%v)", got, got)
+				}
 			},
-			"Query invalid: regular expression is invalid",
 		},
 		{
-			"net error",
-			args{
-				&net.OpError{
-					Op:  "coucou",
-					Err: fmt.Errorf("network sucks"),
-				},
+			name: "duplicate_key",
+			err:  mongo.WriteException{WriteErrors: []mongo.WriteError{{Code: 11000, Message: "dup"}}},
+			assert: func(t *testing.T, got error) {
+				t.Helper()
+				var target manipulate.ErrConstraintViolation
+				if !errors.As(got, &target) {
+					t.Fatalf("expected ErrConstraintViolation, got %T (%v)", got, got)
+				}
 			},
-			"Cannot communicate: coucou: network sucks",
 		},
 		{
-			"err not found",
-			args{
-				mgo.ErrNotFound,
+			name: "invalid_query_regex",
+			err:  mongo.CommandError{Code: 2, Message: errInvalidQueryBadRegex},
+			assert: func(t *testing.T, got error) {
+				t.Helper()
+				var target manipulate.ErrInvalidQuery
+				if !errors.As(got, &target) {
+					t.Fatalf("expected ErrInvalidQuery, got %T (%v)", got, got)
+				}
+				if !target.DueToFilter {
+					t.Fatalf("expected DueToFilter=true")
+				}
 			},
-			"Object not found: cannot find the object for the given ID",
 		},
 		{
-			"err dup",
-			args{
-				&mgo.LastError{Code: 11000},
+			name: "command_error_communication",
+			err:  mongo.CommandError{Code: 6, Message: "host unreachable"},
+			assert: func(t *testing.T, got error) {
+				t.Helper()
+				if !manipulate.IsCannotCommunicateError(got) {
+					t.Fatalf("expected ErrCannotCommunicate, got %T (%v)", got, got)
+				}
 			},
-			"Constraint violation: duplicate key",
 		},
 		{
-			"isConnectionError says yes",
-			args{
-				fmt.Errorf("lost connection to server"),
+			name: "generic_query_error",
+			err:  errors.New("query failed"),
+			assert: func(t *testing.T, got error) {
+				t.Helper()
+				var target manipulate.ErrCannotExecuteQuery
+				if !errors.As(got, &target) {
+					t.Fatalf("expected ErrCannotExecuteQuery, got %T (%v)", got, got)
+				}
 			},
-			"Cannot communicate: lost connection to server",
-		},
-		{
-			"isConnectionError says no",
-			args{
-				fmt.Errorf("no"),
-			},
-			"Unable to execute query: no",
-		},
-
-		{
-			"err 6",
-			args{
-				&mgo.LastError{Code: 6, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 7",
-			args{
-				&mgo.LastError{Code: 7, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 71",
-			args{
-				&mgo.LastError{Code: 71, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 74",
-			args{
-				&mgo.LastError{Code: 74, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 91",
-			args{
-				&mgo.LastError{Code: 91, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 109",
-			args{
-				&mgo.LastError{Code: 109, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 189",
-			args{
-				&mgo.LastError{Code: 189, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 202",
-			args{
-				&mgo.LastError{Code: 202, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 216",
-			args{
-				&mgo.LastError{Code: 216, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 10107",
-			args{
-				&mgo.LastError{Code: 10107, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 13436",
-			args{
-				&mgo.LastError{Code: 13436, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 13435",
-			args{
-				&mgo.LastError{Code: 13435, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 11600",
-			args{
-				&mgo.LastError{Code: 11600, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 11602",
-			args{
-				&mgo.LastError{Code: 11602, Err: "boom"},
-			},
-			"Cannot communicate: boom",
-		},
-		{
-			"err 424242",
-			args{
-				&mgo.LastError{Code: 424242, Err: "boom"},
-			},
-			"Unable to execute query: boom",
-		},
-
-		{
-			"err 11602 QueryError ",
-			args{
-				&mgo.QueryError{Code: 424242, Message: "boom"},
-			},
-			"Unable to execute query: boom",
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := HandleQueryError(tt.args.err)
-			if tt.errString != err.Error() {
-				t.Errorf("HandleQueryError() error = %v, wantErr %v", err, tt.errString)
-			}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := HandleQueryError(tc.err)
+			tc.assert(t, got)
 		})
 	}
 }
 
-func Test_makeNamespaceFilter(t *testing.T) {
-
-	Convey("calling with no ns in mctx should work", t, func() {
-		mctx := manipulate.NewContext(context.Background())
-		f := makeNamespaceFilter(mctx)
-		So(f, ShouldBeNil)
-	})
-
-	Convey("calling with a ns in mctx should work", t, func() {
-		mctx := manipulate.NewContext(context.Background(),
-			manipulate.ContextOptionNamespace("/hello/world"),
-		)
-		f := makeNamespaceFilter(mctx)
-		So(f, ShouldNotBeNil)
-		So(f, ShouldResemble, bson.D{
-			bson.DocElem{
-				Name: "$and",
-				Value: []bson.D{
-					{
-						bson.DocElem{
-							Name: "namespace",
-							Value: bson.D{
-								bson.DocElem{
-									Name:  "$eq",
-									Value: "/hello/world",
-								},
-							},
-						},
-					},
-				},
-			},
-		})
-	})
-
-	Convey("calling with a ns and recursive in mctx should work", t, func() {
-		mctx := manipulate.NewContext(context.Background(),
-			manipulate.ContextOptionNamespace("/hello/world"),
-			manipulate.ContextOptionRecursive(true),
-		)
-		f := makeNamespaceFilter(mctx)
-		So(f, ShouldNotBeNil)
-		So(f, ShouldResemble, bson.D{
-			bson.DocElem{
-				Name: "$and",
-				Value: []bson.D{
-					{
-						bson.DocElem{
-							Name: "$or",
-							Value: []bson.D{
-								{
-									bson.DocElem{
-										Name: "$and",
-										Value: []bson.D{
-											{
-												bson.DocElem{
-													Name: "namespace",
-													Value: bson.D{
-														bson.DocElem{
-															Name:  "$eq",
-															Value: "/hello/world",
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-								{
-									bson.DocElem{
-										Name: "$and",
-										Value: []bson.D{
-											{
-												bson.DocElem{
-													Name: "$or",
-													Value: []bson.D{
-														{
-															bson.DocElem{
-																Name: "namespace",
-																Value: bson.D{
-																	bson.DocElem{
-																		Name:  "$regex",
-																		Value: "^/hello/world/",
-																	},
-																},
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		})
-	})
-
-	Convey("calling with a ns and recursive and propagated in mctx should work", t, func() {
-		mctx := manipulate.NewContext(context.Background(),
-			manipulate.ContextOptionNamespace("/hello/world"),
-			manipulate.ContextOptionRecursive(true),
-			manipulate.ContextOptionPropagated(true),
-		)
-		f := makeNamespaceFilter(mctx)
-		So(f, ShouldNotBeNil)
-		So(f, ShouldResemble,
-			bson.D{
-				bson.DocElem{
-					Name: "$and",
-					Value: []bson.D{
-						{
-							bson.DocElem{
-								Name: "$or",
-								Value: []bson.D{
-									{
-										bson.DocElem{
-											Name: "$and",
-											Value: []bson.D{
-												{
-													bson.DocElem{
-														Name: "$or",
-														Value: []bson.D{
-															{
-																bson.DocElem{
-																	Name: "$and",
-																	Value: []bson.D{
-																		{
-																			bson.DocElem{
-																				Name: "namespace",
-																				Value: bson.D{
-																					bson.DocElem{
-																						Name:  "$eq",
-																						Value: "/hello/world",
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
-															{
-																bson.DocElem{
-																	Name: "$and",
-																	Value: []bson.D{
-																		{
-																			bson.DocElem{
-																				Name: "$or",
-																				Value: []bson.D{
-																					{
-																						bson.DocElem{
-																							Name: "namespace",
-																							Value: bson.D{
-																								bson.DocElem{
-																									Name:  "$regex",
-																									Value: "^/hello/world/",
-																								},
-																							},
-																						},
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-									{
-										bson.DocElem{
-											Name: "$and",
-											Value: []bson.D{
-												{
-													bson.DocElem{
-														Name: "$or",
-														Value: []bson.D{
-															{
-																bson.DocElem{
-																	Name: "$and",
-																	Value: []bson.D{
-																		{
-																			bson.DocElem{
-																				Name:  "namespace",
-																				Value: bson.D{bson.DocElem{Name: "$eq", Value: "/hello"}},
-																			},
-																		},
-																		{
-																			bson.DocElem{
-																				Name:  "propagate",
-																				Value: bson.M{"$eq": true},
-																			},
-																		},
-																	},
-																},
-															},
-															{
-																bson.DocElem{
-																	Name: "$and",
-																	Value: []bson.D{
-																		{
-																			bson.DocElem{
-																				Name:  "namespace",
-																				Value: bson.D{bson.DocElem{Name: "$eq", Value: "/"}},
-																			},
-																		},
-																		{
-																			bson.DocElem{
-																				Name:  "propagate",
-																				Value: bson.M{"$eq": true},
-																			},
-																		},
-																	},
-																},
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		)
-	})
-}
-
-func Test_makeUserFilter(t *testing.T) {
-
-	Convey("making user filter with no filter should work", t, func() {
-
-		attrSpec := testmodel.NewList()
-		mctx := manipulate.NewContext(context.Background())
-		f := makeUserFilter(mctx, attrSpec)
-		So(f, ShouldBeNil)
-	})
-
-	Convey("making user filter with filter should work", t, func() {
-
-		attrSpec := testmodel.NewList()
-		mctx := manipulate.NewContext(context.Background(),
-			manipulate.ContextOptionFilter(
-				elemental.NewFilterComposer().WithKey("name").Equals("the-name").Done(),
-			),
-		)
-		f := makeUserFilter(mctx, attrSpec)
-		So(f, ShouldNotBeNil)
-		So(f, ShouldResemble,
-			bson.D{
-				bson.DocElem{
-					Name: "$and",
-					Value: []bson.D{
-						{
-							bson.DocElem{
-								Name: "name",
-								Value: bson.D{
-									bson.DocElem{
-										Name:  "$eq",
-										Value: "the-name",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		)
-	})
-}
-
-func Test_makePipeline(t *testing.T) {
-
-	Convey("calling make pipeline with everything empty should work", t, func() {
-
-		attrSpec := testmodel.NewList()
-		r := func(id bson.ObjectId) (bson.M, error) { return nil, nil }
-
-		pipe, err := makePipeline(attrSpec, r, nil, nil, nil, nil, nil, "", 0, nil)
-		So(err, ShouldBeNil)
-		So(pipe, ShouldResemble, []bson.M{})
-	})
-
-	Convey("calling make pipeline with everything ok should work", t, func() {
-
-		attrSpec := testmodel.NewList()
-		r := func(id bson.ObjectId) (bson.M, error) {
-			return bson.M{"name": "bob", "age": 245}, nil
-		}
-
-		id, _ := objectid.Parse("673f8580686b0ea7a1241fee")
-
-		pipe, err := makePipeline(
-			attrSpec,
-			r,
-			bson.D{bson.DocElem{Name: "shard", Value: "good"}},
-			bson.D{bson.DocElem{Name: "namespace", Value: "good"}},
-			bson.D{bson.DocElem{Name: "forced", Value: "good"}},
-			bson.D{bson.DocElem{Name: "user", Value: "good"}},
-			[]string{"name", "-age"},
-			"673f8580686b0ea7a1241fee",
-			2,
-			[]string{"a", "b"},
-		)
-		So(err, ShouldBeNil)
-		So(pipe, ShouldResemble,
-			[]bson.M{
-				{"$match": bson.D{
-					bson.DocElem{Name: "shard", Value: "good"},
-				}},
-				{"$match": bson.D{
-					bson.DocElem{Name: "namespace", Value: "good"},
-				}},
-				{"$match": bson.D{
-					bson.DocElem{Name: "forced", Value: "good"},
-				}},
-				{"$sort": bson.D{
-					bson.DocElem{Name: "name", Value: 1},
-					bson.DocElem{Name: "age", Value: -1},
-					bson.DocElem{Name: "_id", Value: 1},
-				}},
-				{"$match": bson.M{
-					"$and": []bson.M{
-						{
-							"$or": []interface{}{
-								bson.M{"name": bson.M{"$gt": "bob"}},
-								bson.M{"_id": bson.M{"$gt": id}, "name": "bob"},
-							},
-						},
-						{
-							"$or": []interface{}{
-								bson.M{"age": bson.M{"$lt": 245}},
-								bson.M{"_id": bson.M{"$gt": id}, "age": 245},
-							},
-						},
-					},
-				}},
-				{"$match": bson.D{
-					bson.DocElem{Name: "user", Value: "good"},
-				}},
-				{"$limit": 2},
-				{"$project": bson.M{"a": 1, "b": 1}},
-			},
-		)
-	})
-
-	Convey("calling make pipeline with after and no order ok should work", t, func() {
-
-		attrSpec := testmodel.NewList()
-		r := func(id bson.ObjectId) (bson.M, error) {
-			return bson.M{"name": "bob", "age": 245}, nil
-		}
-
-		id, _ := objectid.Parse("673f8580686b0ea7a1241fee")
-
-		pipe, err := makePipeline(
-			attrSpec,
-			r,
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-			"673f8580686b0ea7a1241fee",
-			2,
-			nil,
-		)
-		So(err, ShouldBeNil)
-		So(pipe, ShouldResemble,
-			[]bson.M{
-				{"$sort": bson.D{
-					bson.DocElem{Name: "_id", Value: 1},
-				}},
-				{"$match": bson.M{
-					"$and": []bson.M{
-						{"_id": bson.M{"$gt": id}},
-					},
-				}},
-				{"$limit": 2},
-			},
-		)
-	})
-
-	Convey("calling make pipeline with bad after format work", t, func() {
-
-		attrSpec := testmodel.NewList()
-		r := func(id bson.ObjectId) (bson.M, error) {
-			return bson.M{"name": "bob", "age": 245}, nil
-		}
-
-		pipe, err := makePipeline(
-			attrSpec,
-			r,
-			bson.D{bson.DocElem{Name: "shard", Value: "good"}},
-			bson.D{bson.DocElem{Name: "namespace", Value: "good"}},
-			bson.D{bson.DocElem{Name: "forced", Value: "good"}},
-			bson.D{bson.DocElem{Name: "user", Value: "good"}},
-			[]string{"name", "-age"},
-			"oh-no",
-			2,
-			[]string{"a", "b"},
-		)
-		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldEqual, "Unable to execute query: after 'oh-no' is not parsable objectId")
-		So(pipe, ShouldBeNil)
-	})
-
-	Convey("calling make pipeline with retriever returning an error format work", t, func() {
-
-		attrSpec := testmodel.NewList()
-		r := func(id bson.ObjectId) (bson.M, error) {
-			return nil, fmt.Errorf("oh noes")
-		}
-
-		pipe, err := makePipeline(
-			attrSpec,
-			r,
-			bson.D{bson.DocElem{Name: "shard", Value: "good"}},
-			bson.D{bson.DocElem{Name: "namespace", Value: "good"}},
-			bson.D{bson.DocElem{Name: "forced", Value: "good"}},
-			bson.D{bson.DocElem{Name: "user", Value: "good"}},
-			[]string{"name", "-age"},
-			"673f8580686b0ea7a1241fee",
-			2,
-			[]string{"a", "b"},
-		)
-		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldEqual, "Unable to execute query: unable to retrieve previous object with after id '673f8580686b0ea7a1241fee': oh noes")
-		So(pipe, ShouldBeNil)
-	})
-
-	Convey("calling make pipeline with retriever returning a nil previous work", t, func() {
-
-		attrSpec := testmodel.NewList()
-		r := func(id bson.ObjectId) (bson.M, error) {
-			return nil, nil
-		}
-
-		pipe, err := makePipeline(
-			attrSpec,
-			r,
-			bson.D{bson.DocElem{Name: "shard", Value: "good"}},
-			bson.D{bson.DocElem{Name: "namespace", Value: "good"}},
-			bson.D{bson.DocElem{Name: "forced", Value: "good"}},
-			bson.D{bson.DocElem{Name: "user", Value: "good"}},
-			[]string{"name", "-age"},
-			"673f8580686b0ea7a1241fee",
-			2,
-			[]string{"a", "b"},
-		)
-		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldEqual, "Unable to execute query: unable to retrieve previous object with after id '673f8580686b0ea7a1241fee': not found")
-		So(pipe, ShouldBeNil)
-	})
-
-}
-
-func Test_makeFieldsSelector(t *testing.T) {
-	type args struct {
-		fields    []string
-		setupSpec func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable
+func TestWorkerAConnectionAndQueryErrorHelpers(t *testing.T) {
+	if !isConnectionError(errors.New("lost connection to server")) {
+		t.Fatalf("expected connection error to be detected")
 	}
-	tests := []struct {
-		name string
-		args args
-		want bson.M
-	}{
-		{
-			"simple",
-			args{
-				[]string{"MyField1", "myfield2", ""},
-				nil,
-			},
-			bson.M{
-				"myfield1": 1,
-				"myfield2": 1,
-			},
-		},
-		{
-			"ID",
-			args{
-				[]string{"ID"},
-				nil,
-			},
-			bson.M{
-				"_id": 1,
-			},
-		},
-		{
-			"id",
-			args{
-				[]string{"ID"},
-				nil,
-			},
-			bson.M{
-				"_id": 1,
-			},
-		},
-		{
-			"inverted",
-			args{
-				[]string{"-something"},
-				nil,
-			},
-			bson.M{
-				"something": 1,
-			},
-		},
-		{
-			"empty",
-			args{
-				[]string{},
-				nil,
-			},
-			nil,
-		},
-		{
-			"nil",
-			args{
-				nil,
-				nil,
-			},
-			nil,
-		},
-		{
-			"only empty",
-			args{
-				[]string{"", ""},
-				nil,
-			},
-			nil,
-		},
-		{
-			"translate fields from provided spec - entry found",
-			args{
-				fields: []string{"FieldA"},
-				setupSpec: func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable {
-
-					spec := internal.NewMockAttributeSpecifiable(ctrl)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("fielda").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "a",
-							},
-						)
-
-					return spec
-				},
-			},
-			bson.M{
-				"a": 1,
-			},
-		},
-		{
-			"translate fields from provided spec - no entry found - should default to whatever was provided",
-			args{
-				fields: []string{"FieldA"},
-				setupSpec: func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable {
-
-					spec := internal.NewMockAttributeSpecifiable(ctrl)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("fielda").
-						Return(
-							elemental.AttributeSpecification{
-
-								// notice how no entry was found for 'fielda' therefore the value in the filter will be used.
-
-								BSONFieldName: "",
-							},
-						)
-
-					return spec
-				},
-			},
-			bson.M{
-				"fielda": 1,
-			},
-		},
+	if isConnectionError(errors.New("unrelated")) {
+		t.Fatalf("unexpected connection error detection")
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
 
-			var spec elemental.AttributeSpecifiable
-			if tt.args.setupSpec != nil {
-				ctrl := gomock.NewController(t)
-				defer ctrl.Finish()
-				spec = tt.args.setupSpec(t, ctrl)
-			}
+	cmdErr := mongo.CommandError{Code: 42, Message: "boom"}
+	if code := getErrorCode(cmdErr); code != 42 {
+		t.Fatalf("unexpected error code: got %d want 42", code)
+	}
 
-			if got := makeFieldsSelector(tt.args.fields, spec); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("makeFieldsSelector() = %v, want %v", got, tt.want)
-			}
-		})
+	ok, invalid := invalidQuery(mongo.CommandError{Code: 2, Message: errInvalidQueryBadRegex})
+	if !ok {
+		t.Fatalf("expected invalid query to be detected")
+	}
+	var invalidQueryErr manipulate.ErrInvalidQuery
+	if !errors.As(invalid, &invalidQueryErr) {
+		t.Fatalf("expected manipulate.ErrInvalidQuery, got %T (%v)", invalid, invalid)
+	}
+
+	ok, invalid = invalidQuery(cmdErr)
+	if ok || invalid != nil {
+		t.Fatalf("expected non-invalid command error, got ok=%v invalid=%v", ok, invalid)
 	}
 }
 
-func Test_applyOrdering(t *testing.T) {
-	type args struct {
-		order     []string
-		setupSpec func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable
+func TestWorkerANamespaceAndUserFilters(t *testing.T) {
+	nsCtx := manipulate.NewContext(
+		context.Background(),
+		manipulate.ContextOptionNamespace("tenant-a"),
+		manipulate.ContextOptionRecursive(true),
+		manipulate.ContextOptionPropagated(true),
+	)
+	if nsFilter := makeNamespaceFilter(nsCtx); len(nsFilter) == 0 {
+		t.Fatalf("expected namespace filter")
 	}
-	tests := []struct {
-		name string
-		args args
-		want []string
-	}{
-		{
-			name: "simple",
-			args: args{
-				order:     []string{"NAME", "toto", ""},
-				setupSpec: nil,
-			},
-			want: []string{"name", "toto"},
-		},
 
-		{
-			name: "ID",
-			args: args{
-				order:     []string{"ID"},
-				setupSpec: nil,
-			},
-			want: []string{"_id"},
-		},
-		{
-			name: "-ID",
-			args: args{
-				order:     []string{"-ID"},
-				setupSpec: nil,
-			},
-			want: []string{"-_id"},
-		},
-
-		{
-			name: "id",
-			args: args{
-				order:     []string{"id"},
-				setupSpec: nil,
-			},
-			want: []string{"_id"},
-		},
-		{
-			name: "-id",
-			args: args{
-				order:     []string{"-id"},
-				setupSpec: nil,
-			},
-			want: []string{"-_id"},
-		},
-
-		{
-			name: "_id",
-			args: args{
-				order:     []string{"_id"},
-				setupSpec: nil,
-			},
-			want: []string{"_id"},
-		},
-
-		{
-			name: "only empty",
-			args: args{
-				order:     []string{"", ""},
-				setupSpec: nil,
-			},
-			want: []string{},
-		},
-
-		{
-			name: "only empty",
-			args: args{
-				order:     []string{"", ""},
-				setupSpec: nil,
-			},
-			want: []string{},
-		},
-
-		{
-			name: "translate order keys from spec",
-			args: args{
-				order: []string{
-					"FieldA",
-					"FieldB",
-				},
-				setupSpec: func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable {
-
-					spec := internal.NewMockAttributeSpecifiable(ctrl)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("FieldA").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "a",
-							},
-						)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("FieldB").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "b",
-							},
-						)
-
-					return spec
-				},
-			},
-			want: []string{"a", "b"},
-		},
-
-		{
-			name: "translate order keys from spec w/ order prefix - one field",
-			args: args{
-				order: []string{
-					"-FieldA",
-					"FieldB",
-				},
-				setupSpec: func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable {
-
-					spec := internal.NewMockAttributeSpecifiable(ctrl)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("FieldA").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "a",
-							},
-						)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("FieldB").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "b",
-							},
-						)
-
-					return spec
-				},
-			},
-			want: []string{"-a", "b"},
-		},
-
-		{
-			name: "translate order keys from spec - ID field - upper case",
-			args: args{
-				order: []string{
-					"ID",
-				},
-				setupSpec: func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable {
-
-					spec := internal.NewMockAttributeSpecifiable(ctrl)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("ID").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "_id",
-							},
-						)
-					return spec
-				},
-			},
-			want: []string{"_id"},
-		},
-
-		{
-			name: "translate order keys from spec - ID field - lower case",
-			args: args{
-				order: []string{
-					"id",
-				},
-				setupSpec: func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable {
-
-					spec := internal.NewMockAttributeSpecifiable(ctrl)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("id").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "_id",
-							},
-						)
-					return spec
-				},
-			},
-			want: []string{"_id"},
-		},
-
-		{
-			name: "translate order keys from spec - ID field - upper case - desc",
-			args: args{
-				order: []string{
-					"-ID",
-				},
-				setupSpec: func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable {
-
-					spec := internal.NewMockAttributeSpecifiable(ctrl)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("ID").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "_id",
-							},
-						)
-					return spec
-				},
-			},
-			want: []string{"-_id"},
-		},
-
-		{
-			name: "translate order keys from spec - ID field - lower case - desc",
-			args: args{
-				order: []string{
-					"-id",
-				},
-				setupSpec: func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable {
-
-					spec := internal.NewMockAttributeSpecifiable(ctrl)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("id").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "_id",
-							},
-						)
-					return spec
-				},
-			},
-			want: []string{"-_id"},
-		},
-
-		{
-			name: "translate order keys from spec w/ order prefix - both fields",
-			args: args{
-				order: []string{
-					"-FieldA",
-					"-FieldB",
-				},
-				setupSpec: func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable {
-
-					spec := internal.NewMockAttributeSpecifiable(ctrl)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("FieldA").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "a",
-							},
-						)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("FieldB").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "b",
-							},
-						)
-
-					return spec
-				},
-			},
-			want: []string{"-a", "-b"},
-		},
-
-		{
-			name: "translate order keys from spec - default to provided value if nothing found in spec",
-			args: args{
-				order: []string{
-					"YOLO",
-				},
-				setupSpec: func(t *testing.T, ctrl *gomock.Controller) elemental.AttributeSpecifiable {
-
-					spec := internal.NewMockAttributeSpecifiable(ctrl)
-					spec.
-						EXPECT().
-						SpecificationForAttribute("YOLO").
-						Return(
-							elemental.AttributeSpecification{
-								BSONFieldName: "",
-							},
-						)
-
-					return spec
-				},
-			},
-			want: []string{"yolo"},
-		},
-
-		{
-			name: "only empty",
-			args: args{
-				order:     []string{"", ""},
-				setupSpec: nil,
-			},
-			want: []string{},
-		},
+	spec := &compilerTestAttributeSpec{fields: map[string]string{"tenantid": "tid"}}
+	userFilterExpr := elemental.NewFilterComposer().WithKey("tenantid").Equals("acuvity").Done()
+	userCtx := manipulate.NewContext(context.Background(), manipulate.ContextOptionFilter(userFilterExpr))
+	userFilter := makeUserFilter(userCtx, spec)
+	if len(userFilter) == 0 {
+		t.Fatalf("expected user filter")
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
 
-			var spec elemental.AttributeSpecifiable
-			if tt.args.setupSpec != nil {
-				ctrl := gomock.NewController(t)
-				defer ctrl.Finish()
-				spec = tt.args.setupSpec(t, ctrl)
-			}
-
-			if got := applyOrdering(tt.args.order, spec); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("applyOrdering() = %v, want %v", got, tt.want)
-			}
-		})
+	encoded, err := bson.MarshalExtJSON(userFilter, false, false)
+	if err != nil {
+		t.Fatalf("unable to marshal user filter: %v", err)
+	}
+	if !strings.Contains(string(encoded), "\"tid\"") {
+		t.Fatalf("expected translated key 'tid' in user filter, got %s", string(encoded))
 	}
 }
 
-func Test_convertReadConsistency(t *testing.T) {
-	type args struct {
-		c manipulate.ReadConsistency
+func TestWorkerAPipelineAndSelectorHelpers(t *testing.T) {
+	id := bson.NewObjectID()
+	retriever := func(bson.ObjectID) (bson.M, error) {
+		return bson.M{"name": "alpha"}, nil
 	}
-	tests := []struct {
-		name string
-		args args
-		want mgo.Mode
-	}{
-		{
-			"eventual",
-			args{manipulate.ReadConsistencyEventual},
-			mgo.Eventual,
-		},
-		{
-			"monotonic",
-			args{manipulate.ReadConsistencyMonotonic},
-			mgo.Monotonic,
-		},
-		{
-			"nearest",
-			args{manipulate.ReadConsistencyNearest},
-			mgo.Nearest,
-		},
-		{
-			"strong",
-			args{manipulate.ReadConsistencyStrong},
-			mgo.Strong,
-		},
-		{
-			"weakest",
-			args{manipulate.ReadConsistencyWeakest},
-			mgo.SecondaryPreferred,
-		},
-		{
-			"default",
-			args{manipulate.ReadConsistencyDefault},
-			-1,
-		},
-		{
-			"something else",
-			args{manipulate.ReadConsistency("else")},
-			-1,
-		},
+
+	pipe, err := makePipeline(
+		nil,
+		retriever,
+		bson.D{{Key: "tenant", Value: "acuvity"}},
+		nil,
+		nil,
+		bson.D{{Key: "status", Value: bson.D{{Key: "$eq", Value: "active"}}}},
+		[]string{"name"},
+		id.Hex(),
+		5,
+		[]string{"id", "name"},
+	)
+	if err != nil {
+		t.Fatalf("unexpected pipeline build error: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := convertReadConsistency(tt.args.c); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("convertConsistency() = %v, want %v", got, tt.want)
-			}
-		})
+	if len(pipe) == 0 {
+		t.Fatalf("expected non-empty pipeline")
+	}
+	if !pipelineContainsStage(pipe, "$sort") {
+		t.Fatalf("expected $sort stage in pipeline: %#v", pipe)
+	}
+	if !pipelineContainsStage(pipe, "$project") {
+		t.Fatalf("expected $project stage in pipeline: %#v", pipe)
+	}
+
+	_, err = makePipeline(nil, retriever, nil, nil, nil, nil, nil, "bad-after", 0, nil)
+	if err == nil {
+		t.Fatalf("expected invalid after id error")
+	}
+	var cannotExecute manipulate.ErrCannotExecuteQuery
+	if !errors.As(err, &cannotExecute) {
+		t.Fatalf("expected ErrCannotExecuteQuery, got %T (%v)", err, err)
+	}
+
+	spec := &compilerTestAttributeSpec{fields: map[string]string{"name": "n"}}
+	sels := makeFieldsSelector([]string{"name", "id"}, spec)
+	if sels["n"] != 1 || sels["id"] != 1 {
+		t.Fatalf("unexpected selector map: %#v", sels)
 	}
 }
 
-func Test_convertWriteConsistency(t *testing.T) {
-	type args struct {
-		c manipulate.WriteConsistency
+func TestWorkerAOrderingAndConsistencyConverters(t *testing.T) {
+	spec := &compilerTestAttributeSpec{fields: map[string]string{"createdat": "created_at"}}
+	order := applyOrdering([]string{"-createdat", "ID"}, spec)
+	if len(order) != 2 || order[0] != "-created_at" || order[1] != "id" {
+		t.Fatalf("unexpected ordering result: %#v", order)
 	}
-	tests := []struct {
-		name string
-		args args
-		want *mgo.Safe
-	}{
-		{
-			"none",
-			args{manipulate.WriteConsistencyNone},
-			nil,
-		},
-		{
-			"strong",
-			args{manipulate.WriteConsistencyStrong},
-			&mgo.Safe{WMode: "majority"},
-		},
-		{
-			"strongest",
-			args{manipulate.WriteConsistencyStrongest},
-			&mgo.Safe{WMode: "majority", J: true},
-		},
-		{
-			"default",
-			args{manipulate.WriteConsistencyDefault},
-			&mgo.Safe{},
-		},
-		{
-			"something else",
-			args{manipulate.WriteConsistency("else")},
-			&mgo.Safe{},
-		},
+
+	if rp := convertReadConsistency(manipulate.ReadConsistencyEventual); rp == nil || rp.Mode() != readpref.SecondaryPreferredMode {
+		t.Fatalf("unexpected eventual read preference: %#v", rp)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := convertWriteConsistency(tt.args.c); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("convertWriteConsistency() = %v, want %v", got, tt.want)
-			}
-		})
+	if rp := convertReadConsistency(manipulate.ReadConsistencyMonotonic); rp == nil || rp.Mode() != readpref.PrimaryPreferredMode {
+		t.Fatalf("unexpected monotonic read preference: %#v", rp)
+	}
+	if rp := convertReadConsistency(manipulate.ReadConsistencyStrong); rp == nil || rp.Mode() != readpref.PrimaryMode {
+		t.Fatalf("unexpected strong read preference: %#v", rp)
+	}
+	if rp := convertReadConsistency(manipulate.ReadConsistencyDefault); rp != nil {
+		t.Fatalf("expected nil read preference for default, got %#v", rp)
+	}
+
+	if wc := convertWriteConsistency(manipulate.WriteConsistencyNone); wc == nil || wc.Acknowledged() {
+		t.Fatalf("unexpected write concern for none: %#v", wc)
+	}
+	if wc := convertWriteConsistency(manipulate.WriteConsistencyStrong); wc == nil || wc.W != writeconcern.WCMajority {
+		t.Fatalf("unexpected write concern for strong: %#v", wc)
+	}
+	if wc := convertWriteConsistency(manipulate.WriteConsistencyStrongest); wc == nil || wc.W != writeconcern.WCMajority || wc.Journal == nil || !*wc.Journal {
+		t.Fatalf("unexpected write concern for strongest: %#v", wc)
+	}
+	if wc := convertWriteConsistency(manipulate.WriteConsistencyDefault); wc == nil || !wc.Acknowledged() {
+		t.Fatalf("unexpected write concern for default: %#v", wc)
 	}
 }
 
-func Test_isConnectionError(t *testing.T) {
-	type args struct {
-		err error
+type workerAMaxTimeQuery struct {
+	last time.Duration
+}
+
+func (q workerAMaxTimeQuery) SetMaxTime(d time.Duration) workerAMaxTimeQuery {
+	q.last = d
+	return q
+}
+
+func TestWorkerASetMaxTime(t *testing.T) {
+	q := workerAMaxTimeQuery{}
+	updated, err := setMaxTime(context.Background(), q)
+	if err != nil {
+		t.Fatalf("unexpected setMaxTime error: %v", err)
 	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			"nil",
-			args{
-				nil,
-			},
-			false,
-		},
-		{
-			"lost connection to server",
-			args{
-				fmt.Errorf("lost connection to server"),
-			},
-			true,
-		},
-		{
-			"no reachable servers",
-			args{
-				fmt.Errorf("no reachable servers"),
-			},
-			true,
-		},
-		{
-			"waiting for replication timed out",
-			args{
-				fmt.Errorf("waiting for replication timed out"),
-			},
-			true,
-		},
-		{
-			"could not contact primary for replica set",
-			args{
-				fmt.Errorf("could not contact primary for replica set"),
-			},
-			true,
-		},
-		{
-			"write results unavailable from",
-			args{
-				fmt.Errorf("write results unavailable from"),
-			},
-			true,
-		},
-		{
-			`could not find host matching read preference { mode: "primary"`,
-			args{
-				fmt.Errorf(`could not find host matching read preference { mode: "primary"`),
-			},
-			true,
-		},
-		{
-			"unable to target",
-			args{
-				fmt.Errorf("unable to target"),
-			},
-			true,
-		},
-		{
-			"Connection refused",
-			args{
-				fmt.Errorf("blah: connection refused"),
-			},
-			true,
-		},
-		{
-			"EOF",
-			args{
-				io.EOF,
-			},
-			true,
-		},
-		{
-			"nope",
-			args{
-				fmt.Errorf("hey"),
-			},
-			false,
-		},
+	if updated.last != defaultGlobalContextTimeout {
+		t.Fatalf("unexpected default max time: got %s want %s", updated.last, defaultGlobalContextTimeout)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := isConnectionError(tt.args.err); got != tt.want {
-				t.Errorf("isConnectionError() = %v, want %v", got, tt.want)
-			}
-		})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	cancel()
+	if _, err := setMaxTime(ctx, q); err == nil {
+		t.Fatalf("expected context cancellation error")
 	}
 }
 
-func Test_getErrorCode(t *testing.T) {
-	type args struct {
-		err error
-	}
-	tests := []struct {
-		name string
-		args args
-		want int
-	}{
-		{
-			"*mgo.QueryError",
-			args{
-				&mgo.QueryError{Code: 42},
-			},
-			42,
-		},
-		{
-			"*mgo.LastError",
-			args{
-				&mgo.LastError{Code: 42},
-			},
-			42,
-		},
-
-		{
-			"*mgo.BulkError",
-			args{
-				&mgo.BulkError{ /* private */ },
-			},
-			0, // Should be 42. but that is sadly untestable... or is it?
-		},
-		{
-			"",
-			args{
-				fmt.Errorf("yo"),
-			},
-			0,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := getErrorCode(tt.args.err); got != tt.want {
-				t.Errorf("getErrorCode() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_invalidQuery(t *testing.T) {
-
-	type args struct {
-		err error
-	}
-
-	testCases := map[string]struct {
-		input   args
-		wantOk  bool
-		wantErr error
-	}{
-		"code 2 - bad regex": {
-			input: args{
-				err: &mgo.QueryError{
-					Code:    2,
-					Message: errInvalidQueryBadRegex,
-				},
-			},
-			wantOk: true,
-			wantErr: manipulate.ErrInvalidQuery{
-				DueToFilter: true,
-				Err: &mgo.QueryError{
-					Code:    2,
-					Message: errInvalidQueryBadRegex,
-				},
-			},
-		},
-		"code 51091 - invalid regex": {
-			input: args{
-				err: &mgo.QueryError{
-					Code:    51091,
-					Message: errInvalidQueryInvalidRegex,
-				},
-			},
-			wantOk: true,
-			wantErr: manipulate.ErrInvalidQuery{
-				DueToFilter: true,
-				Err: &mgo.QueryError{
-					Code:    51091,
-					Message: errInvalidQueryInvalidRegex,
-				},
-			},
-		},
-		"nil": {
-			input: args{
-				err: nil,
-			},
-			wantOk:  false,
-			wantErr: nil,
-		},
-		"not an invalid query error": {
-			input: args{
-				err: errors.New("some other error"),
-			},
-			wantOk:  false,
-			wantErr: nil,
-		},
-	}
-
-	for scenario, tc := range testCases {
-		t.Run(scenario, func(t *testing.T) {
-			ok, err := invalidQuery(tc.input.err)
-
-			if ok != tc.wantOk {
-				t.Errorf("wanted '%t', got '%t'", tc.wantOk, ok)
-			}
-
-			if ok && err == nil {
-				t.Error("no error was returned when one was expected")
-			}
-
-			if !reflect.DeepEqual(err, tc.wantErr) {
-				t.Log("Error types did not match")
-				t.Errorf("\n"+
-					"EXPECTED:\n"+
-					"%+v\n"+
-					"ACTUAL:\n"+
-					"%+v",
-					tc.wantErr,
-					err,
-				)
-			}
-		})
-	}
-}
-
-func Test_explainIfNeeded(t *testing.T) {
-
+func TestWorkerAExplainIfNeededSelection(t *testing.T) {
 	identity := elemental.MakeIdentity("thing", "things")
+	query := &workerAExplainableStub{}
 
-	type args struct {
-		query      *mgo.Query
-		filter     bson.D
-		identity   elemental.Identity
-		operation  elemental.Operation
-		explainMap map[elemental.Identity]map[elemental.Operation]struct{}
+	if callback := explainIfNeeded(query, nil, identity, elemental.OperationRetrieve, nil); callback != nil {
+		t.Fatalf("expected nil callback when explain map is empty")
 	}
+
+	callback := explainIfNeeded(
+		query,
+		bson.D{{Key: "k", Value: "v"}},
+		identity,
+		elemental.OperationRetrieve,
+		map[elemental.Identity]map[elemental.Operation]struct{}{
+			identity: {elemental.OperationRetrieve: {}},
+		},
+	)
+	if callback == nil {
+		t.Fatalf("expected explain callback")
+	}
+	if err := callback(); err != nil {
+		t.Fatalf("unexpected explain callback error: %v", err)
+	}
+}
+
+func pipelineContainsStage(pipe []any, key string) bool {
+	for _, stage := range pipe {
+		doc, ok := stage.(bson.D)
+		if !ok || len(doc) == 0 {
+			continue
+		}
+		if doc[0].Key == key {
+			return true
+		}
+	}
+	return false
+}
+
+func TestWorkerAHandleQueryErrorFallsBackToExecute(t *testing.T) {
+	baseErr := fmt.Errorf("unexpected")
+	got := HandleQueryError(baseErr)
+	var cannotExecute manipulate.ErrCannotExecuteQuery
+	if !errors.As(got, &cannotExecute) {
+		t.Fatalf("expected ErrCannotExecuteQuery for fallback path, got %T (%v)", got, got)
+	}
+}
+
+func TestWorkerAMongoQueryErrorMethods(t *testing.T) {
+	var nilErr *mongoQueryError
+	if got := nilErr.Error(); got != "" {
+		t.Fatalf("expected empty string on nil receiver, got %q", got)
+	}
+	if got := nilErr.Unwrap(); got != nil {
+		t.Fatalf("expected nil unwrap on nil receiver, got %v", got)
+	}
+
+	inner := errors.New("inner")
+	errWithInner := &mongoQueryError{Message: "outer", Err: inner}
+	if got := errWithInner.Error(); got != "inner" {
+		t.Fatalf("expected wrapped error message, got %q", got)
+	}
+	if got := errWithInner.Unwrap(); !errors.Is(got, inner) {
+		t.Fatalf("expected unwrap to return wrapped error, got %v", got)
+	}
+
+	msgOnly := &mongoQueryError{Message: "message only"}
+	if got := msgOnly.Error(); got != "message only" {
+		t.Fatalf("expected message fallback, got %q", got)
+	}
+	if got := msgOnly.Unwrap(); got != nil {
+		t.Fatalf("expected nil unwrap without wrapped error, got %v", got)
+	}
+}
+
+func TestWorkerAQueryErrorBranches(t *testing.T) {
 	tests := []struct {
-		name     string
-		args     args
-		wantFunc bool
+		name         string
+		err          error
+		expectOK     bool
+		expectedCode int
+		expectedMsg  string
 	}{
+		{name: "nil", err: nil, expectOK: false},
 		{
-			"empty",
-			args{
-				nil,
-				nil,
-				identity,
-				elemental.OperationCreate,
-				map[elemental.Identity]map[elemental.Operation]struct{}{},
-			},
-			false,
+			name:         "command_error",
+			err:          mongo.CommandError{Code: 100, Message: "command failed"},
+			expectOK:     true,
+			expectedCode: 100,
+			expectedMsg:  "command failed",
 		},
 		{
-			"nil",
-			args{
-				nil,
-				nil,
-				identity,
-				elemental.OperationCreate,
-				nil,
-			},
-			false,
+			name:         "write_error",
+			err:          mongo.WriteError{Code: 101, Message: "write failed"},
+			expectOK:     true,
+			expectedCode: 101,
+			expectedMsg:  "write failed",
 		},
 		{
-			"matching exactly",
-			args{
-				nil,
-				nil,
-				identity,
-				elemental.OperationCreate,
-				map[elemental.Identity]map[elemental.Operation]struct{}{
-					identity: {elemental.OperationCreate: {}},
-				},
+			name: "write_exception_with_write_error",
+			err: mongo.WriteException{
+				WriteErrors: mongo.WriteErrors{{Code: 102, Message: "write exception write error"}},
 			},
-			true,
+			expectOK:     true,
+			expectedCode: 102,
+			expectedMsg:  "write exception write error",
 		},
 		{
-			"matching with no operation",
-			args{
-				nil,
-				nil,
-				identity,
-				elemental.OperationCreate,
-				map[elemental.Identity]map[elemental.Operation]struct{}{
-					identity: {},
-				},
+			name: "write_exception_with_write_concern_error",
+			err: mongo.WriteException{
+				WriteConcernError: &mongo.WriteConcernError{Code: 103, Message: "write concern failed"},
 			},
-			true,
+			expectOK:     true,
+			expectedCode: 103,
+			expectedMsg:  "write concern failed",
 		},
 		{
-			"matching with nil operation",
-			args{
-				nil,
-				nil,
-				identity,
-				elemental.OperationCreate,
-				map[elemental.Identity]map[elemental.Operation]struct{}{
-					identity: nil,
-				},
-			},
-			true,
+			name:     "write_exception_without_details",
+			err:      mongo.WriteException{},
+			expectOK: false,
 		},
 		{
-			"not matching",
-			args{
-				nil,
-				nil,
-				identity,
-				elemental.OperationCreate,
-				map[elemental.Identity]map[elemental.Operation]struct{}{
-					elemental.MakeIdentity("hello", "hellos"): {},
-				},
+			name: "bulk_write_exception_with_write_error",
+			err: mongo.BulkWriteException{
+				WriteErrors: []mongo.BulkWriteError{{
+					WriteError: mongo.WriteError{Code: 104, Message: "bulk write failed"},
+				}},
 			},
-			false,
+			expectOK:     true,
+			expectedCode: 104,
+			expectedMsg:  "bulk write failed",
+		},
+		{
+			name: "bulk_write_exception_with_write_concern_error",
+			err: mongo.BulkWriteException{
+				WriteConcernError: &mongo.WriteConcernError{Code: 105, Message: "bulk write concern failed"},
+			},
+			expectOK:     true,
+			expectedCode: 105,
+			expectedMsg:  "bulk write concern failed",
+		},
+		{
+			name:     "bulk_write_exception_without_details",
+			err:      mongo.BulkWriteException{},
+			expectOK: false,
+		},
+		{
+			name:     "untyped_error",
+			err:      errors.New("plain"),
+			expectOK: false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := explainIfNeeded(tt.args.query, tt.args.filter, tt.args.identity, tt.args.operation, tt.args.explainMap); (got != nil) != tt.wantFunc {
-				t.Errorf("explainIfNeeded() = %v, want %v", (got != nil), tt.wantFunc)
+			qErr, ok := queryError(tt.err)
+			if ok != tt.expectOK {
+				t.Fatalf("unexpected ok state: got %v want %v (err=%v)", ok, tt.expectOK, tt.err)
+			}
+			if !tt.expectOK {
+				if qErr != nil {
+					t.Fatalf("expected nil query error, got %#v", qErr)
+				}
+				return
+			}
+			if qErr == nil {
+				t.Fatalf("expected non-nil query error")
+			}
+			if qErr.Code != tt.expectedCode || qErr.Message != tt.expectedMsg {
+				t.Fatalf("unexpected query error mapping: got code=%d message=%q want code=%d message=%q",
+					qErr.Code, qErr.Message, tt.expectedCode, tt.expectedMsg)
 			}
 		})
 	}
 }
 
-func TestSetMaxTime(t *testing.T) {
+type workerAObjectIDAlias bson.ObjectID
+type workerAStringAlias string
 
-	Convey("Calling setMaxTime with a context with no deadline should work", t, func() {
-		q := &mgo.Query{}
-		q, err := setMaxTime(context.Background(), q)
-		So(err, ShouldBeNil)
-		qr := (&mgo.Query{}).SetMaxTime(defaultGlobalContextTimeout)
-		So(q, ShouldResemble, qr)
-	})
+func TestWorkerAConvertObjectIDForMethodBranches(t *testing.T) {
+	id := bson.NewObjectID()
 
-	Convey("Calling setMaxTime with a context with valid deadline should work", t, func() {
-		q := &mgo.Query{}
-		deadline := time.Now().Add(3 * time.Second)
-		ctx, cancel := context.WithDeadline(context.Background(), deadline)
-		defer cancel()
+	idType := reflect.TypeOf(id)
+	idValue, err := convertObjectIDForMethod(id, idType)
+	if err != nil {
+		t.Fatalf("unexpected assignable conversion error: %v", err)
+	}
+	if got, ok := idValue.Interface().(bson.ObjectID); !ok || got != id {
+		t.Fatalf("unexpected assignable conversion result: %#v", idValue.Interface())
+	}
 
-		q, err := setMaxTime(ctx, q)
-		So(err, ShouldBeNil)
-		qr := (&mgo.Query{}).SetMaxTime(time.Until(deadline))
-		So(q, ShouldResemble, qr)
-	})
+	var aliasValue workerAObjectIDAlias
+	aliasType := reflect.TypeOf(aliasValue)
+	convertedAlias, err := convertObjectIDForMethod(id, aliasType)
+	if err != nil {
+		t.Fatalf("unexpected convertible object id conversion error: %v", err)
+	}
+	gotAlias, ok := convertedAlias.Interface().(workerAObjectIDAlias)
+	if !ok || bson.ObjectID(gotAlias) != id {
+		t.Fatalf("unexpected alias conversion result: %#v", convertedAlias.Interface())
+	}
 
-	Convey("Calling setMaxTime with a context with expired deadline should not work", t, func() {
-		q := &mgo.Query{}
-		deadline := time.Now().Add(-3 * time.Second)
-		ctx, cancel := context.WithDeadline(context.Background(), deadline)
-		defer cancel()
+	stringType := reflect.TypeOf("")
+	hexValue, err := convertObjectIDForMethod(id, stringType)
+	if err != nil {
+		t.Fatalf("unexpected string conversion error: %v", err)
+	}
+	if got := hexValue.Interface().(string); got != id.Hex() {
+		t.Fatalf("unexpected hex conversion result: got %q want %q", got, id.Hex())
+	}
 
-		q, err := setMaxTime(ctx, q)
-		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldEqual, "Unable to build query: context deadline exceeded")
-		So(q, ShouldBeNil)
-	})
+	var aliasStringValue workerAStringAlias
+	aliasStringType := reflect.TypeOf(aliasStringValue)
+	convertedStringAlias, err := convertObjectIDForMethod(id, aliasStringType)
+	if err != nil {
+		t.Fatalf("unexpected convertible string conversion error: %v", err)
+	}
+	if got := convertedStringAlias.Interface().(workerAStringAlias); got != workerAStringAlias(id.Hex()) {
+		t.Fatalf("unexpected alias string conversion result: got %q want %q", got, workerAStringAlias(id.Hex()))
+	}
 
-	Convey("Calling setMaxTime with a canceled context should not work", t, func() {
-		q := &mgo.Query{}
-		deadline := time.Now().Add(3 * time.Second)
-		ctx, cancel := context.WithDeadline(context.Background(), deadline)
-		cancel()
+	if _, err := convertObjectIDForMethod(id, reflect.TypeOf(0)); err == nil {
+		t.Fatalf("expected conversion error for incompatible target type")
+	}
+}
 
-		q, err := setMaxTime(ctx, q)
-		So(err, ShouldNotBeNil)
-		So(err.Error(), ShouldEqual, "Unable to build query: context canceled")
-		So(q, ShouldBeNil)
-	})
+type workerAMissingFindIDCollection struct{}
+
+type workerABadFindIDSignatureCollection struct{}
+
+func (workerABadFindIDSignatureCollection) FindId() *workerAFakeQuery {
+	return &workerAFakeQuery{}
+}
+
+type workerABadFindIDResultArityCollection struct{}
+
+func (workerABadFindIDResultArityCollection) FindId(string) (*workerAFakeQuery, error) {
+	return &workerAFakeQuery{}, nil
+}
+
+type workerAQueryWithoutOne struct{}
+
+type workerAMissingOneMethodCollection struct{}
+
+func (workerAMissingOneMethodCollection) FindId(string) workerAQueryWithoutOne {
+	return workerAQueryWithoutOne{}
+}
+
+type workerABadOneResultArityQuery struct{}
+
+func (workerABadOneResultArityQuery) One(any) (error, error) {
+	return nil, nil
+}
+
+type workerABadOneResultArityCollection struct{}
+
+func (workerABadOneResultArityCollection) FindId(string) workerABadOneResultArityQuery {
+	return workerABadOneResultArityQuery{}
+}
+
+type workerANonErrorOneResultQuery struct{}
+
+func (workerANonErrorOneResultQuery) One(any) any {
+	return 123
+}
+
+type workerANonErrorOneResultCollection struct{}
+
+func (workerANonErrorOneResultCollection) FindId(string) workerANonErrorOneResultQuery {
+	return workerANonErrorOneResultQuery{}
+}
+
+type workerAErrorOneResultQuery struct{}
+
+func (workerAErrorOneResultQuery) One(any) error {
+	return errors.New("one failed")
+}
+
+type workerAErrorOneResultCollection struct{}
+
+func (workerAErrorOneResultCollection) FindId(string) workerAErrorOneResultQuery {
+	return workerAErrorOneResultQuery{}
+}
+
+type workerAIncompatibleFindIDArgCollection struct{}
+
+func (workerAIncompatibleFindIDArgCollection) FindId(bool) *workerAFakeQuery {
+	return &workerAFakeQuery{}
+}
+
+func TestWorkerAMakePreviousRetrieverByReflectionErrorBranches(t *testing.T) {
+	id := bson.NewObjectID()
+
+	tests := []struct {
+		name       string
+		collection any
+		wantErr    string
+	}{
+		{
+			name:       "missing_find_id_method",
+			collection: workerAMissingFindIDCollection{},
+			wantErr:    "missing FindId method",
+		},
+		{
+			name:       "unsupported_find_id_signature",
+			collection: workerABadFindIDSignatureCollection{},
+			wantErr:    "unsupported FindId signature",
+		},
+		{
+			name:       "incompatible_find_id_argument",
+			collection: workerAIncompatibleFindIDArgCollection{},
+			wantErr:    "cannot convert mongo object id",
+		},
+		{
+			name:       "unsupported_find_id_result_arity",
+			collection: workerABadFindIDResultArityCollection{},
+			wantErr:    "unsupported FindId result arity",
+		},
+		{
+			name:       "missing_one_method",
+			collection: workerAMissingOneMethodCollection{},
+			wantErr:    "missing One method",
+		},
+		{
+			name:       "unsupported_one_result_arity",
+			collection: workerABadOneResultArityCollection{},
+			wantErr:    "unsupported One result arity",
+		},
+		{
+			name:       "one_returns_non_error_type",
+			collection: workerANonErrorOneResultCollection{},
+			wantErr:    "query failed with non-error type",
+		},
+		{
+			name:       "one_returns_error_type",
+			collection: workerAErrorOneResultCollection{},
+			wantErr:    "one failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := makePreviousRetrieverByReflection(tt.collection, id)
+			if err == nil {
+				t.Fatalf("expected error for %s", tt.name)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("unexpected error: got %q want fragment %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestWorkerAApplyOrderingSpecialCases(t *testing.T) {
+	got := applyOrdering([]string{"", "ID", "-id", "Name"}, nil)
+	want := []string{"_id", "-_id", "name"}
+	if len(got) != len(want) {
+		t.Fatalf("unexpected ordering length: got %#v want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("unexpected ordering at index %d: got %q want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestWorkerAMakeFieldsSelectorEmptyBranches(t *testing.T) {
+	if got := makeFieldsSelector(nil, nil); got != nil {
+		t.Fatalf("expected nil selector for empty fields, got %#v", got)
+	}
+	if got := makeFieldsSelector([]string{""}, nil); got != nil {
+		t.Fatalf("expected nil selector when all fields are empty, got %#v", got)
+	}
 }

@@ -17,10 +17,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/globalsign/mgo/bson"
 	. "github.com/smartystreets/goconvey/convey"
 	"go.acuvity.ai/elemental"
+	testmodel "go.acuvity.ai/elemental/test/model"
 	"go.acuvity.ai/manipulate"
+	mongobson "go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type fakeSharder struct{}
@@ -31,10 +32,10 @@ func (*fakeSharder) Shard(manipulate.TransactionalManipulator, manipulate.Contex
 func (*fakeSharder) OnShardedWrite(manipulate.TransactionalManipulator, manipulate.Context, elemental.Operation, elemental.Identifiable) error {
 	return nil
 }
-func (*fakeSharder) FilterOne(manipulate.TransactionalManipulator, manipulate.Context, elemental.Identifiable) (bson.D, error) {
+func (*fakeSharder) FilterOne(manipulate.TransactionalManipulator, manipulate.Context, elemental.Identifiable) (mongobson.D, error) {
 	return nil, nil
 }
-func (*fakeSharder) FilterMany(manipulate.TransactionalManipulator, manipulate.Context, elemental.Identity) (bson.D, error) {
+func (*fakeSharder) FilterMany(manipulate.TransactionalManipulator, manipulate.Context, elemental.Identity) (mongobson.D, error) {
 	return nil, nil
 }
 
@@ -104,13 +105,6 @@ func Test_Options(t *testing.T) {
 		So(c.writeConsistency, ShouldEqual, manipulate.WriteConsistencyStrong)
 	})
 
-	Convey("Calling OptionSharder should work", t, func() {
-		c := newConfig()
-		s := &fakeSharder{}
-		OptionSharder(s)(c)
-		So(c.sharder, ShouldEqual, s)
-	})
-
 	Convey("Calling OptionDefaultRetryFunc should work", t, func() {
 		f := func(manipulate.RetryInfo) error { return nil }
 		c := newConfig()
@@ -118,8 +112,22 @@ func Test_Options(t *testing.T) {
 		So(c.defaultRetryFunc, ShouldEqual, f)
 	})
 
+	Convey("Calling OptionSharder should work", t, func() {
+		c := newConfig()
+		s := &fakeSharder{}
+		OptionSharder(s)(c)
+		So(c.sharderMongo, ShouldEqual, s)
+	})
+
 	Convey("Calling OptionForceReadFilter should work", t, func() {
-		f := bson.D{}
+		f := mongobson.D{}
+		c := newConfig()
+		OptionForceReadFilter(f)(c)
+		So(c.forcedReadFilter, ShouldResemble, f)
+	})
+
+	Convey("Calling OptionForceReadFilter should work", t, func() {
+		f := mongobson.D{{Key: "tenant", Value: "acuvity"}}
 		c := newConfig()
 		OptionForceReadFilter(f)(c)
 		So(c.forcedReadFilter, ShouldResemble, f)
@@ -143,13 +151,21 @@ func Test_Options(t *testing.T) {
 		c := newConfig()
 		So(func() { OptionTranslateKeysFromModelManager(nil)(c) }, ShouldPanic)
 	})
+
+	Convey("Calling OptionTranslateKeysFromModelManager should populate attribute specifiers", t, func() {
+		c := newConfig()
+		OptionTranslateKeysFromModelManager(testmodel.Manager())(c)
+		So(c.attributeSpecifiers, ShouldNotBeNil)
+		_, ok := c.attributeSpecifiers[testmodel.TaskIdentity]
+		So(ok, ShouldBeTrue)
+	})
 }
 
 func Test_ContextOptions(t *testing.T) {
 
 	Convey("Calling ContextOptionUpsert should work", t, func() {
-		b := bson.M{
-			"$setOnInsert": bson.M{"hello": "world"},
+		b := mongobson.M{
+			"$setOnInsert": mongobson.M{"hello": "world"},
 		}
 		mctx := manipulate.NewContext(context.Background())
 		ContextOptionUpsert(b)(mctx)
@@ -157,12 +173,50 @@ func Test_ContextOptions(t *testing.T) {
 	})
 
 	Convey("Calling ContextOptionUpsert with $set should panic", t, func() {
-		b := bson.M{"$set": true}
+		b := mongobson.M{"$set": true}
 		So(func() { ContextOptionUpsert(b)(nil) }, ShouldPanicWith, "cannot use $set in upsert operations")
 	})
 
 	Convey("Calling ContextOptionUpsert with $setOnInsert with _id should panic", t, func() {
-		b := bson.M{"$setOnInsert": bson.M{"_id": 1}}
+		b := mongobson.M{"$setOnInsert": mongobson.M{"_id": 1}}
 		So(func() { ContextOptionUpsert(b)(nil) }, ShouldPanicWith, "cannot use $setOnInsert on _id in upsert operations")
+	})
+
+	Convey("Calling ContextOptionUpsert should work", t, func() {
+		b := mongobson.M{
+			"$setOnInsert": mongobson.M{"hello": "world"},
+		}
+		mctx := manipulate.NewContext(context.Background())
+		ContextOptionUpsert(b)(mctx)
+		So(mctx.(opaquer).Opaque()[opaqueKeyUpsert], ShouldEqual, b)
+	})
+
+	Convey("Calling ContextOptionUpsert with $set should panic", t, func() {
+		b := mongobson.M{"$set": true}
+		So(func() { ContextOptionUpsert(b)(nil) }, ShouldPanicWith, "cannot use $set in upsert operations")
+	})
+
+	Convey("Calling ContextOptionUpsert with $setOnInsert with _id should panic", t, func() {
+		b := mongobson.M{"$setOnInsert": mongobson.M{"_id": 1}}
+		So(func() { ContextOptionUpsert(b)(nil) }, ShouldPanicWith, "cannot use $setOnInsert on _id in upsert operations")
+	})
+
+	Convey("Calling ContextOptionUpsert with non-map $setOnInsert should panic with clear message", t, func() {
+		b := mongobson.M{"$setOnInsert": "bad"}
+		So(func() { ContextOptionUpsert(b)(nil) }, ShouldPanicWith, "$setOnInsert in upsert operations must be of type bson.M")
+	})
+
+	Convey("Calling ContextOptionUpsertSafe should return errors instead of panic", t, func() {
+		_, err := ContextOptionUpsertSafe(mongobson.M{"$set": true})
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldEqual, "cannot use $set in upsert operations")
+
+		_, err = ContextOptionUpsertSafe(mongobson.M{"$setOnInsert": "bad"})
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldEqual, "$setOnInsert in upsert operations must be of type bson.M")
+
+		_, err = ContextOptionUpsertSafe(mongobson.M{"$setOnInsert": mongobson.M{"_id": 1}})
+		So(err, ShouldNotBeNil)
+		So(err.Error(), ShouldEqual, "cannot use $setOnInsert on _id in upsert operations")
 	})
 }

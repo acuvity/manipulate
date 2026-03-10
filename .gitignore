@@ -17,3 +17,6 @@ remod.dev
 .idea
 dist
 /coverage.xml
+.cache/
+.gocache/
+.gomodcache/
