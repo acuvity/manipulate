@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/globalsign/mgo/bson"
+	bson "go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestParse(t *testing.T) {
@@ -14,7 +14,7 @@ func TestParse(t *testing.T) {
 	tests := []struct {
 		name  string
 		args  args
-		want  bson.ObjectId
+		want  bson.ObjectID
 		want1 bool
 	}{
 		{
@@ -22,7 +22,7 @@ func TestParse(t *testing.T) {
 			args{
 				"5d66b8f7919e0c446f0b4597",
 			},
-			bson.ObjectIdHex("5d66b8f7919e0c446f0b4597"),
+			mustObjectID("5d66b8f7919e0c446f0b4597"),
 			true,
 		},
 		{
@@ -30,7 +30,7 @@ func TestParse(t *testing.T) {
 			args{
 				"ZZZ6b8f7919e0c446f0b4597",
 			},
-			bson.ObjectId(""),
+			bson.NilObjectID,
 			false,
 		},
 		{
@@ -38,7 +38,7 @@ func TestParse(t *testing.T) {
 			args{
 				"5d66b8f7919e0c446f0b459",
 			},
-			bson.ObjectId(""),
+			bson.NilObjectID,
 			false,
 		},
 		{
@@ -46,7 +46,7 @@ func TestParse(t *testing.T) {
 			args{
 				"",
 			},
-			bson.ObjectId(""),
+			bson.NilObjectID,
 			false,
 		},
 		{
@@ -54,7 +54,7 @@ func TestParse(t *testing.T) {
 			args{
 				"hello world how are you",
 			},
-			bson.ObjectId(""),
+			bson.NilObjectID,
 			false,
 		},
 	}
@@ -69,4 +69,12 @@ func TestParse(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustObjectID(s string) bson.ObjectID {
+	oid, err := bson.ObjectIDFromHex(s)
+	if err != nil {
+		panic(err)
+	}
+	return oid
 }
