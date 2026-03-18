@@ -94,7 +94,7 @@ func NewPropagationFilterWithCustomProperty(
 	addititionalFiltering *elemental.Filter,
 ) *elemental.Filter {
 
-	filters := []*elemental.Filter{}
+	filters := make([]*elemental.Filter, 0, len(elemental.NamespaceAncestorsNames(namespace)))
 
 	for _, pns := range elemental.NamespaceAncestorsNames(namespace) {
 		f := NewNamespaceFilterWithCustomProperty(namespacePropName, pns, false).
