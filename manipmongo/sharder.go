@@ -12,12 +12,12 @@
 package manipmongo
 
 import (
-	"github.com/globalsign/mgo/bson"
 	"go.acuvity.ai/elemental"
 	"go.acuvity.ai/manipulate"
+	bson "go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// A Sharder is the interface of an object that can be use
+// A Sharder is the interface for an object that can be used
 // to manage sharding of resources.
 type Sharder interface {
 
@@ -31,13 +31,13 @@ type Sharder interface {
 	// created will still be created in database.
 	OnShardedWrite(manipulate.TransactionalManipulator, manipulate.Context, elemental.Operation, elemental.Identifiable) error
 
-	// FilterOne returns the filter bit as bson.M that must be
+	// FilterOne returns the filter bit as bson.D that must be
 	// used to perform an efficient localized query for a single object.
 	//
 	// You can return nil which will trigger a broadcast.
 	FilterOne(manipulate.TransactionalManipulator, manipulate.Context, elemental.Identifiable) (bson.D, error)
 
-	// FilterMany returns the filter bit as bson.M that must be
+	// FilterMany returns the filter bit as bson.D that must be
 	// used to perform an efficient localized query for multiple objects.
 	//
 	// You can return nil which will trigger a broadcast.
