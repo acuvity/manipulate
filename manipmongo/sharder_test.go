@@ -44,11 +44,11 @@ func TestSharderHelpers(t *testing.T) {
 		filterMany: mongobson.D{{Key: "tenant", Value: "acuvity"}},
 	}}
 
-	one, err := m.makeShardingOneFilter(mctx, obj)
+	one, err := makeShardingOneFilter(m, mctx, obj)
 	if err != nil || len(one) == 0 {
 		t.Fatalf("unexpected FilterOne result: %v %v", one, err)
 	}
-	many, err := m.makeShardingManyFilter(mctx, identity)
+	many, err := makeShardingManyFilter(m, mctx, identity)
 	if err != nil || len(many) == 0 {
 		t.Fatalf("unexpected FilterMany result: %v %v", many, err)
 	}
@@ -58,10 +58,10 @@ func TestSharderHelpersWrapErrors(t *testing.T) {
 	mctx := manipulate.NewContext(context.Background())
 	m := &mongoManipulator{sharder: &testSharder{err: errors.New("boom")}}
 
-	if _, err := m.makeShardingOneFilter(mctx, newMongoIntegrationObject("demo")); err == nil {
+	if _, err := makeShardingOneFilter(m, mctx, newMongoIntegrationObject("demo")); err == nil {
 		t.Fatalf("expected FilterOne error")
 	}
-	if _, err := m.makeShardingManyFilter(mctx, elemental.MakeIdentity("resource", "resources")); err == nil {
+	if _, err := makeShardingManyFilter(m, mctx, elemental.MakeIdentity("resource", "resources")); err == nil {
 		t.Fatalf("expected FilterMany error")
 	}
 }

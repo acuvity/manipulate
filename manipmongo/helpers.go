@@ -34,7 +34,7 @@ func DoesDatabaseExist(manipulator manipulate.Manipulator) (bool, error) {
 		panic("you can only pass a mongo manipulator to DoesDatabaseExist")
 	}
 
-	ctx, cancel := m.defaultContext()
+	ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
 
 	dbs, err := m.client.ListDatabaseNames(ctx, odbson.D{})
@@ -61,7 +61,7 @@ func DropDatabase(manipulator manipulate.Manipulator) error {
 		panic("you can only pass a mongo manipulator to DropDatabase")
 	}
 
-	ctx, cancel := m.defaultContext()
+	ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
 
 	return m.makeAcknowledgedDatabase().Drop(ctx)
@@ -77,7 +77,7 @@ func CreateIndex(manipulator manipulate.Manipulator, identity elemental.Identity
 		panic("you can only pass a mongo manipulator to CreateIndex")
 	}
 
-	ctx, cancel := m.defaultContext()
+	ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
 
 	coll := m.makeAcknowledgedDatabase().Collection(identity.Name)
@@ -107,7 +107,7 @@ func EnsureIndex(manipulator manipulate.Manipulator, identity elemental.Identity
 		panic("you can only pass a mongo manipulator to CreateIndex")
 	}
 
-	ctx, cancel := m.defaultContext()
+	ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
 
 	coll := m.makeAcknowledgedDatabase().Collection(identity.Name)
@@ -158,7 +158,7 @@ func DeleteIndex(manipulator manipulate.Manipulator, identity elemental.Identity
 		panic("you can only pass a mongo manipulator to DeleteIndex")
 	}
 
-	ctx, cancel := m.defaultContext()
+	ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
 
 	coll := m.makeAcknowledgedDatabase().Collection(identity.Name)
@@ -186,7 +186,7 @@ func CreateCollection(
 		panic("you can only pass a mongo manipulator to CreateCollection")
 	}
 
-	ctx, cancel := m.defaultContext()
+	ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 	defer cancel()
 
 	if err := m.makeAcknowledgedDatabase().CreateCollection(ctx, identity.Name, opts...); err != nil {
@@ -230,7 +230,7 @@ func Disconnect(manipulator manipulate.Manipulator, ctx context.Context) error {
 
 	if ctx == nil {
 		var cancel context.CancelFunc
-		ctx, cancel = m.defaultContext()
+		ctx, cancel = contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 		defer cancel()
 	}
 
