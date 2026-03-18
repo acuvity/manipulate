@@ -29,6 +29,12 @@ lint:
 test:
 	go test ./... -vet off -race -cover -covermode=atomic -coverprofile=unit_coverage.out
 
+test-mongo:
+	REQUIRE_MONGO=1 go test ./manipmongo/... -count=1
+
+test-mongo-cover:
+	REQUIRE_MONGO=1 go test ./manipmongo/... -count=1 -cover -covermode=atomic -coverprofile=mongo_integration_coverage.out
+
 sec:
 	gosec -quiet ./...
 
