@@ -76,7 +76,7 @@ func TestContextOptionUpsertPanicsOnInvalidInput(t *testing.T) {
 	}
 }
 
-func TestNewAllowsZeroConnectionTimeout(t *testing.T) {
+func TestNewZeroConnectionTimeoutUsesDefaultDeadline(t *testing.T) {
 	originalConnect := mongoConnectFn
 	originalPing := mongoPingFn
 	originalDisconnect := mongoDisconnectFn
@@ -97,8 +97,13 @@ func TestNewAllowsZeroConnectionTimeout(t *testing.T) {
 		if err := ctx.Err(); err != nil {
 			t.Fatalf("expected ping context to be active, got %v", err)
 		}
-		if _, ok := ctx.Deadline(); ok {
-			t.Fatalf("expected zero connection timeout to avoid setting a deadline")
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Fatalf("expected zero connection timeout to fall back to a default deadline")
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 30*time.Second || remaining > defaultOperationTimeout {
+			t.Fatalf("unexpected ping deadline remaining: %v", remaining)
 		}
 		return nil
 	}
@@ -114,6 +119,37 @@ func TestNewAllowsZeroConnectionTimeout(t *testing.T) {
 	if connectCalls != 1 || pingCalls != 1 {
 		t.Fatalf("expected one connect and one ping call, got connect=%d ping=%d", connectCalls, pingCalls)
 	}
+}
+
+func TestNewPanicsOnInvalidPoolLimit(t *testing.T) {
+	assertPanics(t, func() {
+		_, _ = New("mongodb://127.0.0.1:27017", "test", OptionConnectionPoolLimit(-1))
+	})
+}
+
+func TestNewPanicsOnInvalidForcedReadFilter(t *testing.T) {
+	originalConnect := mongoConnectFn
+	originalPing := mongoPingFn
+	originalDisconnect := mongoDisconnectFn
+	defer func() {
+		mongoConnectFn = originalConnect
+		mongoPingFn = originalPing
+		mongoDisconnectFn = originalDisconnect
+	}()
+
+	mongoConnectFn = func(opts ...*mongooptions.ClientOptions) (*mongo.Client, error) {
+		return &mongo.Client{}, nil
+	}
+	mongoPingFn = func(*mongo.Client, context.Context) error { return nil }
+	mongoDisconnectFn = func(*mongo.Client, context.Context) error { return nil }
+
+	assertPanics(t, func() {
+		_, _ = New(
+			"mongodb://127.0.0.1:27017",
+			"test",
+			OptionForceReadFilter(mongobson.D{{Key: "bad", Value: make(chan int)}}),
+		)
+	})
 }
 
 type testOptionsSharder struct{}

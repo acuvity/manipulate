@@ -20,6 +20,8 @@ import (
 	bson "go.mongodb.org/mongo-driver/v2/bson"
 )
 
+const opaqueKeyUpsert = "manipmongo.upsert"
+
 // An Option represents a maniphttp.Manipulator option.
 type Option func(*config)
 
@@ -42,14 +44,8 @@ type config struct {
 	attributeSpecifiers map[elemental.Identity]elemental.AttributeSpecifiable
 }
 
-func newConfig() *config {
-	return &config{
-		poolLimit:        4096,
-		connectTimeout:   10 * time.Second,
-		operationTimeout: defaultOperationTimeout,
-		readConsistency:  manipulate.ReadConsistencyDefault,
-		writeConsistency: manipulate.WriteConsistencyDefault,
-	}
+type opaquer interface {
+	Opaque() map[string]any
 }
 
 // OptionCredentials sets the username and password to use for authentication.
@@ -93,7 +89,7 @@ func OptionClientTimeout(clientTimeout time.Duration) Option {
 
 // OptionSocketTimeout sets the default per-operation timeout used by manipmongo
 // when the provided manipulate.Context has no deadline.
-// Passing 0 disables the default per-operation timeout.
+// Passing 0 keeps the package default timeout.
 func OptionSocketTimeout(socketTimeout time.Duration) Option {
 	return func(c *config) {
 		c.operationTimeout = socketTimeout
@@ -189,12 +185,6 @@ func OptionTranslateKeysFromModelManager(manager elemental.ModelManager) Option 
 	}
 }
 
-const opaqueKeyUpsert = "manipmongo.upsert"
-
-type opaquer interface {
-	Opaque() map[string]any
-}
-
 // ContextOptionUpsert tells to use upsert for a Create operation.
 // The given operation will be executed for the upsert command.
 // You cannot use "$set" which is always set to be the identifier.
@@ -222,5 +212,15 @@ func ContextOptionUpsert(operations bson.M) manipulate.ContextOption {
 
 	return func(c manipulate.Context) {
 		c.(opaquer).Opaque()[opaqueKeyUpsert] = operations
+	}
+}
+
+func newConfig() *config {
+	return &config{
+		poolLimit:        4096,
+		connectTimeout:   10 * time.Second,
+		operationTimeout: defaultOperationTimeout,
+		readConsistency:  manipulate.ReadConsistencyDefault,
+		writeConsistency: manipulate.WriteConsistencyDefault,
 	}
 }

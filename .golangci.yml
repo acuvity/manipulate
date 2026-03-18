@@ -1,0 +1,21 @@
+version: "2"
+
+linters:
+  enable:
+    - decorder
+  settings:
+    decorder:
+      dec-order:
+        - const
+        - var
+        - type
+        - func
+      disable-dec-num-check: true
+  exclusions:
+    rules:
+      - path-except: ^manipmongo/(manipulator|utils|helpers|options)\.go$
+        linters:
+          - decorder
+
+run:
+  relative-path-mode: wd
