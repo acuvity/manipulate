@@ -3,26 +3,28 @@ package objectid
 import (
 	"encoding/hex"
 
-	"github.com/globalsign/mgo/bson"
+	bson "go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Parse parses the given string and returns
-// a bson.ObjectId and true if the given value is valid,
-// otherwise it will return an empty bson.ObjectId and false.
+// a bson.ObjectID and true if the given value is valid,
+// otherwise it will return an empty bson.ObjectID and false.
 //
-// This is copy of the bson.ObjectIdHex function, but
+// This is copy of the bson.ObjectIDFromHex behavior, but
 // prevents doing double decode in the classic procedure:
-// if bson.IsObjectId(x) { bson.ObjectIdHex(x} }
-func Parse(s string) (bson.ObjectId, bool) {
+// if bson.IsObjectIDHex(x) { bson.ObjectIDFromHex(x) }.
+func Parse(s string) (bson.ObjectID, bool) {
 
 	if len(s) != 24 {
-		return bson.ObjectId(""), false
+		return bson.NilObjectID, false
 	}
 
 	d, err := hex.DecodeString(s)
 	if err != nil || len(d) != 12 {
-		return bson.ObjectId(""), false
+		return bson.NilObjectID, false
 	}
 
-	return bson.ObjectId(d), true
+	var oid bson.ObjectID
+	copy(oid[:], d)
+	return oid, true
 }
