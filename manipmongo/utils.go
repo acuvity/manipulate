@@ -29,13 +29,11 @@ import (
 	"go.acuvity.ai/manipulate/internal/backoff"
 	bson "go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
 	"go.mongodb.org/mongo-driver/v2/mongo/writeconcern"
 )
 
 const (
-	descendingOrderPrefix       = "-"
 	errInvalidQueryInvalidRegex = "regular expression is invalid"
 	errInvalidQueryBadRegex     = "$regex has to be a string"
 )
@@ -158,13 +156,13 @@ func applyOrdering(order []string, spec elemental.AttributeSpecifiable) []string
 		}
 
 		if spec != nil {
-			trimmed := strings.TrimPrefix(f, descendingOrderPrefix)
+			trimmed := strings.TrimPrefix(f, "-")
 			if attrSpec := spec.SpecificationForAttribute(trimmed); attrSpec.BSONFieldName != "" {
 				original := f
 				f = attrSpec.BSONFieldName
 				// if we stripped the "-" from the field name, we add it back to the BSON representation of the field name.
 				if trimmed != original {
-					f = fmt.Sprintf("%s%s", descendingOrderPrefix, f)
+					f = "-" + f
 				}
 			}
 		} else {
@@ -214,6 +212,9 @@ func countFromResults(res []*countRes) (int, error) {
 	}
 }
 
+// contextWithDefaultTimeout preserves the long-standing manipmongo behavior
+// that a zero timeout means "use the package default" rather than "no
+// timeout".
 func contextWithDefaultTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, effectiveTimeout(timeout))
 }
@@ -393,86 +394,6 @@ func runQueryMongo(mctx manipulate.Context, operationFunc func() (any, error), b
 	}
 }
 
-func newMongo(url string, db string, opts ...Option) (manipulate.TransactionalManipulator, error) {
-	cfg := newConfig()
-	for _, o := range opts {
-		o(cfg)
-	}
-
-	if cfg.poolLimit < 0 {
-		panic(fmt.Errorf("manipmongo: invalid connection pool limit %d: must be greater than or equal to 0", cfg.poolLimit))
-	}
-
-	validatedForcedReadFilter := bson.D{}
-	if len(cfg.forcedReadFilter) > 0 {
-		validatedForcedReadFilter = append(validatedForcedReadFilter, cfg.forcedReadFilter...)
-		if _, err := bson.Marshal(validatedForcedReadFilter); err != nil {
-			panic(fmt.Errorf("manipmongo: invalid forced read filter: %w", err))
-		}
-	}
-
-	mongoPoolLimit := cfg.poolLimit
-	if mongoPoolLimit == 0 {
-		mongoPoolLimit = newConfig().poolLimit
-	}
-
-	clientOpts := options.Client().
-		ApplyURI(url).
-		SetMaxPoolSize(uint64(mongoPoolLimit)).
-		SetConnectTimeout(cfg.connectTimeout)
-
-	if cfg.clientTimeout > 0 {
-		clientOpts.SetTimeout(cfg.clientTimeout)
-	}
-
-	if cfg.username != "" || cfg.password != "" || cfg.authsource != "" {
-		clientOpts.SetAuth(options.Credential{
-			Username:   cfg.username,
-			Password:   cfg.password,
-			AuthSource: cfg.authsource,
-		})
-	}
-
-	if cfg.tlsConfig != nil {
-		clientOpts.SetTLSConfig(cfg.tlsConfig)
-	}
-
-	if rp := convertReadPreferenceMongo(cfg.readConsistency); rp != nil {
-		clientOpts.SetReadPreference(rp)
-	}
-	if wc := convertWriteConcernMongo(cfg.writeConsistency); wc != nil {
-		clientOpts.SetWriteConcern(wc)
-	}
-
-	client, err := mongoConnectFn(clientOpts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot connect to mongo url '%s': %w", redactMongoURI(url), err)
-	}
-
-	ctx, cancel := contextWithDefaultTimeout(context.Background(), cfg.connectTimeout)
-	defer cancel()
-	if err := mongoPingFn(client, ctx); err != nil {
-		disconnectCtx, disconnectCancel := contextWithDefaultTimeout(context.Background(), cfg.connectTimeout)
-		defer disconnectCancel()
-		_ = mongoDisconnectFn(client, disconnectCtx)
-		return nil, fmt.Errorf("cannot ping mongo url '%s': %w", redactMongoURI(url), err)
-	}
-
-	return &mongoManipulator{
-		client:                  client,
-		dbName:                  db,
-		sharder:                 cfg.sharder,
-		defaultRetryFunc:        cfg.defaultRetryFunc,
-		forcedReadFilter:        validatedForcedReadFilter,
-		attributeEncrypter:      cfg.attributeEncrypter,
-		explain:                 cfg.explain,
-		attributeSpecifiers:     cfg.attributeSpecifiers,
-		operationTimeout:        cfg.operationTimeout,
-		defaultReadConsistency:  cfg.readConsistency,
-		defaultWriteConsistency: cfg.writeConsistency,
-	}, nil
-}
-
 func makePreviousRetriever(ctx context.Context, coll *mongo.Collection, defaultTimeout time.Duration) func(id bson.ObjectID) (bson.M, error) {
 	return func(id bson.ObjectID) (bson.M, error) {
 		queryCtx, cancel, err := mongoOperationContext(ctx, defaultTimeout)
@@ -612,8 +533,8 @@ func makePipeline(
 		for _, f := range order {
 
 			cmp, op := 1, "$gt"
-			if strings.HasPrefix(f, descendingOrderPrefix) {
-				cmp, op, f = -1, "$lt", strings.TrimPrefix(f, descendingOrderPrefix)
+			if strings.HasPrefix(f, "-") {
+				cmp, op, f = -1, "$lt", strings.TrimPrefix(f, "-")
 			}
 
 			hasID = hasID || f == "_id"
@@ -801,7 +722,7 @@ func makeFieldsSelector(fields []string, spec elemental.AttributeSpecifiable) bs
 			continue
 		}
 
-		f = strings.ToLower(strings.TrimPrefix(f, descendingOrderPrefix))
+		f = strings.ToLower(strings.TrimPrefix(f, "-"))
 		if spec != nil {
 			// if a spec has been provided, use it to look up the BSON field name if there is an entry for the attribute.
 			// if no entry was found for the attribute in the provided spec default to whatever value was provided for
