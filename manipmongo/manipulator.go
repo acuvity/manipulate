@@ -29,6 +29,9 @@ import (
 
 const defaultOperationTimeout = 60 * time.Second
 
+// These indirections are package-level test seams. Some unit tests swap them
+// so constructor and disconnect behavior can be validated without dialing a
+// real MongoDB server.
 var (
 	mongoConnectFn = func(opts ...*options.ClientOptions) (*mongo.Client, error) {
 		return mongo.Connect(opts...)
@@ -59,8 +62,84 @@ type mongoManipulator struct {
 }
 
 // New returns a new manipulator backed by the official mongo driver.
-func New(url string, db string, options ...Option) (manipulate.TransactionalManipulator, error) {
-	return newMongo(url, db, options...)
+func New(url string, db string, opts ...Option) (manipulate.TransactionalManipulator, error) {
+	cfg := newConfig()
+	for _, o := range opts {
+		o(cfg)
+	}
+
+	if cfg.poolLimit < 0 {
+		panic(fmt.Errorf("manipmongo: invalid connection pool limit %d: must be greater than or equal to 0", cfg.poolLimit))
+	}
+
+	validatedForcedReadFilter := bson.D{}
+	if len(cfg.forcedReadFilter) > 0 {
+		validatedForcedReadFilter = append(validatedForcedReadFilter, cfg.forcedReadFilter...)
+		if _, err := bson.Marshal(validatedForcedReadFilter); err != nil {
+			panic(fmt.Errorf("manipmongo: invalid forced read filter: %w", err))
+		}
+	}
+
+	mongoPoolLimit := cfg.poolLimit
+	if mongoPoolLimit == 0 {
+		mongoPoolLimit = newConfig().poolLimit
+	}
+
+	clientOpts := options.Client().
+		ApplyURI(url).
+		SetMaxPoolSize(uint64(mongoPoolLimit)).
+		SetConnectTimeout(cfg.connectTimeout)
+
+	if cfg.clientTimeout > 0 {
+		clientOpts.SetTimeout(cfg.clientTimeout)
+	}
+
+	if cfg.username != "" || cfg.password != "" || cfg.authsource != "" {
+		clientOpts.SetAuth(options.Credential{
+			Username:   cfg.username,
+			Password:   cfg.password,
+			AuthSource: cfg.authsource,
+		})
+	}
+
+	if cfg.tlsConfig != nil {
+		clientOpts.SetTLSConfig(cfg.tlsConfig)
+	}
+
+	if rp := convertReadPreferenceMongo(cfg.readConsistency); rp != nil {
+		clientOpts.SetReadPreference(rp)
+	}
+	if wc := convertWriteConcernMongo(cfg.writeConsistency); wc != nil {
+		clientOpts.SetWriteConcern(wc)
+	}
+
+	client, err := mongoConnectFn(clientOpts)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to mongo url '%s': %w", redactMongoURI(url), err)
+	}
+
+	ctx, cancel := contextWithDefaultTimeout(context.Background(), cfg.connectTimeout)
+	defer cancel()
+	if err := mongoPingFn(client, ctx); err != nil {
+		disconnectCtx, disconnectCancel := contextWithDefaultTimeout(context.Background(), cfg.connectTimeout)
+		defer disconnectCancel()
+		_ = mongoDisconnectFn(client, disconnectCtx)
+		return nil, fmt.Errorf("cannot ping mongo url '%s': %w", redactMongoURI(url), err)
+	}
+
+	return &mongoManipulator{
+		client:                  client,
+		dbName:                  db,
+		sharder:                 cfg.sharder,
+		defaultRetryFunc:        cfg.defaultRetryFunc,
+		forcedReadFilter:        validatedForcedReadFilter,
+		attributeEncrypter:      cfg.attributeEncrypter,
+		explain:                 cfg.explain,
+		attributeSpecifiers:     cfg.attributeSpecifiers,
+		operationTimeout:        cfg.operationTimeout,
+		defaultReadConsistency:  cfg.readConsistency,
+		defaultWriteConsistency: cfg.writeConsistency,
+	}, nil
 }
 
 func (m *mongoManipulator) RetrieveMany(mctx manipulate.Context, dest elemental.Identifiables) error {
