@@ -143,6 +143,7 @@ func New(url string, db string, opts ...Option) (manipulate.TransactionalManipul
 }
 
 func (m *mongoManipulator) RetrieveMany(mctx manipulate.Context, dest elemental.Identifiables) error {
+
 	if mctx == nil {
 		ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 		defer cancel()
@@ -166,6 +167,7 @@ func (m *mongoManipulator) RetrieveMany(mctx manipulate.Context, dest elemental.
 
 	coll := m.makeCollection(dest.Identity(), mctx.ReadConsistency(), mctx.WriteConsistency())
 
+	// Make filters.
 	fSharding, err := makeShardingManyFilter(m, mctx, dest.Identity())
 	if err != nil {
 		return spanErr(sp, err)
@@ -229,9 +231,13 @@ func (m *mongoManipulator) RetrieveMany(mctx manipulate.Context, dest elemental.
 	var lastID string
 	lst := dest.List()
 	for _, o := range lst {
+
+		// backport all default values that are empty.
 		if a, ok := o.(elemental.AttributeSpecifiable); ok {
 			elemental.ResetDefaultForZeroValues(a)
 		}
+
+		// Decrypt attributes if needed.
 		if m.attributeEncrypter != nil {
 			if a, ok := o.(elemental.AttributeEncryptable); ok {
 				if err := a.DecryptAttributes(m.attributeEncrypter); err != nil {
@@ -507,6 +513,7 @@ func (m *mongoManipulator) Create(mctx manipulate.Context, object elemental.Iden
 }
 
 func (m *mongoManipulator) Update(mctx manipulate.Context, object elemental.Identifiable) error {
+
 	if mctx == nil {
 		ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 		defer cancel()
@@ -527,6 +534,7 @@ func (m *mongoManipulator) Update(mctx manipulate.Context, object elemental.Iden
 		}
 	}
 
+	// backport all default values that are empty.
 	if a, ok := object.(elemental.AttributeSpecifiable); ok {
 		elemental.ResetDefaultForZeroValues(a)
 	}
@@ -586,6 +594,7 @@ func (m *mongoManipulator) Update(mctx manipulate.Context, object elemental.Iden
 }
 
 func (m *mongoManipulator) Delete(mctx manipulate.Context, object elemental.Identifiable) error {
+
 	if mctx == nil {
 		ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 		defer cancel()
@@ -655,6 +664,8 @@ func (m *mongoManipulator) Delete(mctx manipulate.Context, object elemental.Iden
 			return spanErr(sp, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("unable to execute sharder.OnShardedWrite for delete: %w", err)})
 		}
 	}
+
+	// backport all default values that are empty.
 	if a, ok := object.(elemental.AttributeSpecifiable); ok {
 		elemental.ResetDefaultForZeroValues(a)
 	}
@@ -663,6 +674,7 @@ func (m *mongoManipulator) Delete(mctx manipulate.Context, object elemental.Iden
 }
 
 func (m *mongoManipulator) DeleteMany(mctx manipulate.Context, identity elemental.Identity) error {
+
 	if mctx == nil {
 		ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
 		defer cancel()
@@ -677,10 +689,12 @@ func (m *mongoManipulator) DeleteMany(mctx manipulate.Context, identity elementa
 		attrSpec = m.attributeSpecifiers[identity]
 	}
 
-	var filter bson.D
+	// Filtering
+	filter := bson.D{}
 	if f := mctx.Filter(); f != nil {
 		filter = makeUserFilter(mctx, attrSpec)
 	}
+
 	var ands []bson.D
 	sq, err := makeShardingManyFilter(m, mctx, identity)
 	if err != nil {
