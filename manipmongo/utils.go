@@ -411,29 +411,31 @@ func makePreviousRetriever(ctx context.Context, coll *mongo.Collection, defaultT
 }
 
 func makeShardingManyFilter(m *mongoManipulator, mctx manipulate.Context, identity elemental.Identity) (bson.D, error) {
+
 	if m.sharder == nil {
 		return nil, nil
 	}
 
-	filter, err := m.sharder.FilterMany(m, mctx, identity)
+	sq, err := m.sharder.FilterMany(m, mctx, identity)
 	if err != nil {
 		return nil, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("cannot compute sharding filter: %w", err)}
 	}
 
-	return filter, nil
+	return sq, nil
 }
 
 func makeShardingOneFilter(m *mongoManipulator, mctx manipulate.Context, object elemental.Identifiable) (bson.D, error) {
+
 	if m.sharder == nil {
 		return nil, nil
 	}
 
-	filter, err := m.sharder.FilterOne(m, mctx, object)
+	sq, err := m.sharder.FilterOne(m, mctx, object)
 	if err != nil {
 		return nil, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("cannot compute sharding filter: %w", err)}
 	}
 
-	return filter, nil
+	return sq, nil
 }
 
 func makeNamespaceFilter(mctx manipulate.Context) bson.D {
