@@ -1,8 +1,21 @@
+// Copyright 2019 Aporeto Inc.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//     http://www.apache.org/licenses/LICENSE-2.0
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package manipmongo
 
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"reflect"
 	"testing"
 	"time"
@@ -32,6 +45,20 @@ func assertPanics(t *testing.T, fn func()) {
 	fn()
 }
 
+func assertPanicsWithMessage(t *testing.T, want string, fn func()) {
+	t.Helper()
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatalf("expected panic %q", want)
+		}
+		if got := fmt.Sprint(r); got != want {
+			t.Fatalf("unexpected panic\nwant: %q\n got: %q", want, got)
+		}
+	}()
+	fn()
+}
+
 func databaseWriteConcern(t *testing.T, db *mongo.Database) *writeconcern.WriteConcern {
 	t.Helper()
 	if db == nil {
@@ -44,6 +71,303 @@ func databaseWriteConcern(t *testing.T, db *mongo.Database) *writeconcern.WriteC
 	}
 
 	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface().(*writeconcern.WriteConcern)
+}
+
+func TestCompileFilter(t *testing.T) {
+	f := elemental.NewFilter().WithKey("a").Equals("b").Done()
+	got := CompileFilter(f)
+	want := mongobson.D{{
+		Key: "$and",
+		Value: []mongobson.D{{
+			{Key: "a", Value: mongobson.D{{Key: "$eq", Value: "b"}}},
+		}},
+	}}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected compiled filter\nwant: %#v\n got: %#v", want, got)
+	}
+}
+
+func TestDoesDatabaseExists(t *testing.T) {
+	m := maniptest.NewTestManipulator()
+	assertPanicsWithMessage(t, "you can only pass a mongo manipulator to DoesDatabaseExist", func() {
+		_, _ = DoesDatabaseExist(m)
+	})
+}
+
+func TestDropDatabase(t *testing.T) {
+	m := maniptest.NewTestManipulator()
+	assertPanicsWithMessage(t, "you can only pass a mongo manipulator to DropDatabase", func() {
+		_ = DropDatabase(m)
+	})
+}
+
+func TestCreateIndex(t *testing.T) {
+	m := maniptest.NewTestManipulator()
+	assertPanicsWithMessage(t, "you can only pass a mongo manipulator to CreateIndex", func() {
+		_ = CreateIndex(m, elemental.MakeIdentity("a", "a"))
+	})
+}
+
+func TestEnsureIndex(t *testing.T) {
+	m := maniptest.NewTestManipulator()
+	assertPanicsWithMessage(t, "you can only pass a mongo manipulator to CreateIndex", func() {
+		_ = EnsureIndex(m, elemental.MakeIdentity("a", "a"))
+	})
+}
+
+func TestDeleteIndex(t *testing.T) {
+	m := maniptest.NewTestManipulator()
+	assertPanicsWithMessage(t, "you can only pass a mongo manipulator to DeleteIndex", func() {
+		_ = DeleteIndex(m, elemental.MakeIdentity("a", "a"))
+	})
+}
+
+func TestCreateCollection(t *testing.T) {
+	m := maniptest.NewTestManipulator()
+	assertPanicsWithMessage(t, "you can only pass a mongo manipulator to CreateCollection", func() {
+		_ = CreateCollection(m, elemental.MakeIdentity("a", "a"), nil)
+	})
+}
+
+func TestGetDatabase(t *testing.T) {
+	m := maniptest.NewTestManipulator()
+	assertPanicsWithMessage(t, "you can only pass a mongo manipulator to GetDatabase", func() {
+		_, _ = GetDatabase(m)
+	})
+}
+
+func TestSetConsistencyMode(t *testing.T) {
+	m := maniptest.NewTestManipulator()
+	assertPanicsWithMessage(t, "you can only pass a mongo manipulator to SetConsistencyMode", func() {
+		_ = SetConsistencyMode(m, manipulate.ReadConsistencyStrong, manipulate.WriteConsistencyStrong)
+	})
+}
+
+func TestRunQuery(t *testing.T) {
+	testIdentity := elemental.MakeIdentity("test", "tests")
+
+	t.Run("query function succeeds", func(t *testing.T) {
+		var try int
+		var lastErr error
+		var imctx *manipulate.Context
+
+		f := func() (any, error) { return "hello", nil }
+		rf := func(i manipulate.RetryInfo) error { // nolint: unparam
+			try = i.Try()
+			lastErr = i.Err()
+			m := i.Context()
+			if m != nil {
+				imctx = &m
+			}
+			return nil
+		}
+
+		mctx := manipulate.NewContext(context.Background(), manipulate.ContextOptionRetryFunc(rf))
+		out, err := RunQuery(
+			mctx,
+			f,
+			RetryInfo{Operation: elemental.OperationCreate, Identity: testIdentity},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "hello" {
+			t.Fatalf("unexpected output: %#v", out)
+		}
+		if try != 0 {
+			t.Fatalf("unexpected try count: %d", try)
+		}
+		if lastErr != nil {
+			t.Fatalf("unexpected lastErr: %v", lastErr)
+		}
+		if imctx != nil {
+			t.Fatalf("expected retry callback to be unused, got context %#v", *imctx)
+		}
+	})
+
+	t.Run("non communication error does not retry", func(t *testing.T) {
+		var try int
+		var lastErr error
+		var imctx *manipulate.Context
+
+		rf := func(i manipulate.RetryInfo) error { // nolint: unparam
+			try = i.Try()
+			lastErr = i.Err()
+			m := i.Context()
+			if m != nil {
+				imctx = &m
+			}
+			return nil
+		}
+
+		out, err := RunQuery(
+			manipulate.NewContext(context.Background(), manipulate.ContextOptionRetryFunc(rf)),
+			func() (any, error) { return nil, fmt.Errorf("boom") },
+			RetryInfo{Operation: elemental.OperationCreate, Identity: testIdentity},
+		)
+		if err == nil || err.Error() != "Unable to execute query: boom" {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != nil {
+			t.Fatalf("expected nil output, got %#v", out)
+		}
+		if try != 0 || lastErr != nil || imctx != nil {
+			t.Fatalf("expected no retry bookkeeping, got try=%d lastErr=%v imctx=%#v", try, lastErr, imctx)
+		}
+	})
+
+	t.Run("communication error retries and succeeds", func(t *testing.T) {
+		var try int
+		var lastErr error
+		var operation elemental.Operation
+		var identity elemental.Identity
+		var imctx *manipulate.Context
+
+		rf := func(i manipulate.RetryInfo) error { // nolint: unparam
+			try = i.Try()
+			lastErr = i.Err()
+			m := i.Context()
+			if m != nil {
+				imctx = &m
+			}
+			operation = i.(RetryInfo).Operation
+			identity = i.(RetryInfo).Identity
+			return nil
+		}
+
+		f := func() (any, error) {
+			if try == 2 {
+				return "hello", nil
+			}
+			return nil, &net.OpError{Err: fmt.Errorf("hello")}
+		}
+
+		mctx := manipulate.NewContext(context.Background(), manipulate.ContextOptionRetryFunc(rf))
+		out, err := RunQuery(
+			mctx,
+			f,
+			RetryInfo{Operation: elemental.OperationCreate, Identity: testIdentity},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "hello" {
+			t.Fatalf("unexpected output: %#v", out)
+		}
+		if try != 2 {
+			t.Fatalf("unexpected try count: %d", try)
+		}
+		if lastErr == nil || lastErr.Error() != "Cannot communicate: : hello" {
+			t.Fatalf("unexpected lastErr: %v", lastErr)
+		}
+		if imctx == nil || *imctx != mctx {
+			t.Fatalf("unexpected retry context: %#v", imctx)
+		}
+		if operation != elemental.OperationCreate {
+			t.Fatalf("unexpected operation: %v", operation)
+		}
+		if !identity.IsEqual(testIdentity) {
+			t.Fatalf("unexpected identity: %#v", identity)
+		}
+	})
+
+	t.Run("retry func error wins", func(t *testing.T) {
+		out, err := RunQuery(
+			manipulate.NewContext(context.Background(), manipulate.ContextOptionRetryFunc(func(i manipulate.RetryInfo) error {
+				return fmt.Errorf("non: %s", i.Err().Error())
+			})),
+			func() (any, error) { return nil, &net.OpError{Err: fmt.Errorf("hello")} },
+			RetryInfo{Operation: elemental.OperationCreate, Identity: testIdentity},
+		)
+		if err == nil || err.Error() != "non: Cannot communicate: : hello" {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != nil {
+			t.Fatalf("expected nil output, got %#v", out)
+		}
+	})
+
+	t.Run("context retry func takes precedence over default retry func", func(t *testing.T) {
+		out, err := RunQuery(
+			manipulate.NewContext(context.Background(), manipulate.ContextOptionRetryFunc(func(i manipulate.RetryInfo) error {
+				return fmt.Errorf("non: %s", i.Err().Error())
+			})),
+			func() (any, error) { return nil, &net.OpError{Err: fmt.Errorf("hello")} },
+			RetryInfo{
+				Operation:        elemental.OperationCreate,
+				Identity:         testIdentity,
+				defaultRetryFunc: func(i manipulate.RetryInfo) error { return fmt.Errorf("oui: %s", i.Err().Error()) },
+			},
+		)
+		if err == nil || err.Error() != "non: Cannot communicate: : hello" {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != nil {
+			t.Fatalf("expected nil output, got %#v", out)
+		}
+	})
+
+	t.Run("default retry func is used when context has none", func(t *testing.T) {
+		out, err := RunQuery(
+			manipulate.NewContext(context.Background()),
+			func() (any, error) { return nil, &net.OpError{Err: fmt.Errorf("hello")} },
+			RetryInfo{
+				Operation:        elemental.OperationCreate,
+				Identity:         testIdentity,
+				defaultRetryFunc: func(i manipulate.RetryInfo) error { return fmt.Errorf("oui: %s", i.Err().Error()) },
+			},
+		)
+		if err == nil || err.Error() != "oui: Cannot communicate: : hello" {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != nil {
+			t.Fatalf("expected nil output, got %#v", out)
+		}
+	})
+
+	t.Run("context deadline stops endless retries", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		out, err := RunQuery(
+			manipulate.NewContext(ctx, manipulate.ContextOptionRetryFunc(func(manipulate.RetryInfo) error { return nil })),
+			func() (any, error) { return nil, &net.OpError{Err: fmt.Errorf("hello")} },
+			RetryInfo{Operation: elemental.OperationCreate, Identity: testIdentity},
+		)
+		if err == nil || err.Error() != "Unable to execute query: context deadline exceeded" {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != nil {
+			t.Fatalf("expected nil output, got %#v", out)
+		}
+	})
+}
+
+func TestSetAttributeEncrypter(t *testing.T) {
+	m := maniptest.NewTestManipulator()
+	assertPanicsWithMessage(t, "you can only pass a mongo manipulator to SetAttributeEncrypter", func() {
+		SetAttributeEncrypter(m, nil)
+	})
+}
+
+func TestGetAttributeEncrypter(t *testing.T) {
+	m := maniptest.NewTestManipulator()
+	assertPanicsWithMessage(t, "you can only pass a mongo manipulator to GetAttributeEncrypter", func() {
+		_ = GetAttributeEncrypter(m)
+	})
+}
+
+func TestIsUpsert(t *testing.T) {
+	mctx := manipulate.NewContext(context.Background(), ContextOptionUpsert(nil))
+	if !IsUpsert(mctx) {
+		t.Fatalf("expected IsUpsert to return true")
+	}
+
+	mctx = manipulate.NewContext(context.Background())
+	if IsUpsert(mctx) {
+		t.Fatalf("expected IsUpsert to return false")
+	}
 }
 
 func TestHelpersPanicForNonMongoManipulator(t *testing.T) {
