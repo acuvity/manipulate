@@ -40,6 +40,10 @@ jobs:
           git config --global url."https://acuvity:${GOTOKEN}@github.com/acuvity".insteadOf "https://github.com/acuvity"
           make
 
+      - name: mongo-integration
+        run: |
+          make test-mongo
+
       - uses: acuvity/cov@1.0.2
         with:
           main_branch: master
