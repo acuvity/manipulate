@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	legacybson "github.com/globalsign/mgo/bson"
 	"go.acuvity.ai/elemental"
 	"go.acuvity.ai/manipulate"
 	mongobson "go.mongodb.org/mongo-driver/v2/bson"
@@ -84,6 +85,82 @@ func newMongoIntegrationObject(name string) *mongoIntegrationObject {
 		Status:      "TODO",
 	}
 }
+
+var mongoLegacyCompatIdentity = elemental.MakeIdentity("mongolegacyitem", "mongolegacyitems")
+
+type mongoLegacyCompatObject struct {
+	ID          string `bson:"-"`
+	Name        string `bson:"name"`
+	Description string `bson:"description"`
+	Disabled    bool   `bson:"disabled"`
+}
+
+type mongoLegacyCompatAttributes struct {
+	ID          legacybson.ObjectId `bson:"_id,omitempty"`
+	Name        string              `bson:"name"`
+	Description string              `bson:"description"`
+	Disabled    bool                `bson:"disabled"`
+}
+
+func (o *mongoLegacyCompatObject) Identifier() string           { return o.ID }
+func (o *mongoLegacyCompatObject) SetIdentifier(id string)      { o.ID = id }
+func (o *mongoLegacyCompatObject) Identity() elemental.Identity { return mongoLegacyCompatIdentity }
+func (o *mongoLegacyCompatObject) Version() int                 { return 0 }
+func (o *mongoLegacyCompatObject) ValueForAttribute(string) any { return nil }
+func (o *mongoLegacyCompatObject) String() string               { return o.Name }
+func (o *mongoLegacyCompatObject) GetBSON() (any, error) {
+	if o == nil {
+		return nil, nil
+	}
+	attrs := &mongoLegacyCompatAttributes{
+		Name:        o.Name,
+		Description: o.Description,
+		Disabled:    o.Disabled,
+	}
+	if o.ID != "" {
+		attrs.ID = legacybson.ObjectIdHex(o.ID)
+	}
+	return attrs, nil
+}
+func (o *mongoLegacyCompatObject) SetBSON(raw legacybson.Raw) error {
+	if o == nil || raw.Kind == legacybson.ElementNil {
+		return legacybson.ErrSetZero
+	}
+	attrs := &mongoLegacyCompatAttributes{}
+	if err := raw.Unmarshal(attrs); err != nil {
+		return err
+	}
+	o.ID = attrs.ID.Hex()
+	o.Name = attrs.Name
+	o.Description = attrs.Description
+	o.Disabled = attrs.Disabled
+	return nil
+}
+
+type mongoLegacyCompatObjects []*mongoLegacyCompatObject
+
+func (l mongoLegacyCompatObjects) Identity() elemental.Identity { return mongoLegacyCompatIdentity }
+func (l mongoLegacyCompatObjects) List() elemental.IdentifiablesList {
+	out := make(elemental.IdentifiablesList, 0, len(l))
+	for _, item := range l {
+		out = append(out, item)
+	}
+	return out
+}
+func (l mongoLegacyCompatObjects) Copy() elemental.Identifiables {
+	cp := make(mongoLegacyCompatObjects, len(l))
+	copy(cp, l)
+	return &cp
+}
+func (l mongoLegacyCompatObjects) Append(objs ...elemental.Identifiable) elemental.Identifiables {
+	for _, obj := range objs {
+		if item, ok := obj.(*mongoLegacyCompatObject); ok {
+			l = append(l, item)
+		}
+	}
+	return l
+}
+func (l mongoLegacyCompatObjects) Version() int { return 0 }
 
 func TestOfficialManipulatorCRUDAndHelpersWithMemongo(t *testing.T) {
 	uri, db := requireMemongo(t)
@@ -244,6 +321,61 @@ func TestOfficialManipulatorCRUDAndHelpersWithMemongo(t *testing.T) {
 
 	if err := SetConsistencyMode(manipulator, manipulate.ReadConsistencyNearest, manipulate.WriteConsistencyStrong); err != nil {
 		t.Fatalf("set mongo consistency mode failed: %v", err)
+	}
+}
+
+func TestOfficialManipulatorLegacyMgoBSONCompatWithMemongo(t *testing.T) {
+	uri, db := requireMemongo(t)
+
+	manipulator, err := New(
+		uri,
+		db,
+		OptionForceReadFilter(mongobson.D{}),
+	)
+	if err != nil {
+		t.Fatalf("unable to create official manipulator: %v", err)
+	}
+
+	obj := &mongoLegacyCompatObject{
+		Name:        "legacy-main",
+		Description: "legacy-description",
+	}
+	if err := manipulator.Create(nil, obj); err != nil {
+		t.Fatalf("legacy create failed: %v", err)
+	}
+	if obj.Identifier() == "" {
+		t.Fatalf("expected legacy object id to be set after create")
+	}
+
+	var list mongoLegacyCompatObjects
+	if err := manipulator.RetrieveMany(manipulate.NewContext(context.Background()), &list); err != nil {
+		t.Fatalf("legacy retrievemany failed: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected one legacy object, got %d", len(list))
+	}
+	if list[0].Identifier() == "" {
+		t.Fatalf("expected legacy object id to be preserved during retrievemany")
+	}
+	if list[0].Identifier() != obj.Identifier() {
+		t.Fatalf("unexpected legacy object id from retrievemany: got %q want %q", list[0].Identifier(), obj.Identifier())
+	}
+
+	list[0].Disabled = true
+	if err := manipulator.Update(nil, list[0]); err != nil {
+		t.Fatalf("legacy update failed: %v", err)
+	}
+
+	retrieved := &mongoLegacyCompatObject{}
+	retrieved.SetIdentifier(obj.Identifier())
+	if err := manipulator.Retrieve(nil, retrieved); err != nil {
+		t.Fatalf("legacy retrieve failed: %v", err)
+	}
+	if retrieved.Identifier() != obj.Identifier() {
+		t.Fatalf("expected legacy retrieve to preserve id: got %q want %q", retrieved.Identifier(), obj.Identifier())
+	}
+	if !retrieved.Disabled {
+		t.Fatalf("expected legacy update to persist disabled=true")
 	}
 }
 

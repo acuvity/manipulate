@@ -19,9 +19,11 @@ import (
 	"maps"
 	"net"
 	neturl "net/url"
+	"reflect"
 	"strings"
 	"time"
 
+	legacybson "github.com/globalsign/mgo/bson"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 	"go.acuvity.ai/elemental"
@@ -260,11 +262,23 @@ func wrapMongoOperationContextError(parentCtx context.Context, queryCtx context.
 	return err
 }
 
-func identifierFilterElement(identifier string) bson.E {
+type legacyBSONGetter interface {
+	GetBSON() (any, error)
+}
+
+type legacyBSONSetter interface {
+	SetBSON(raw legacybson.Raw) error
+}
+
+func identifierMongoValue(identifier string) any {
 	if oid, err := bson.ObjectIDFromHex(identifier); err == nil {
-		return bson.E{Key: "_id", Value: oid}
+		return oid
 	}
-	return bson.E{Key: "_id", Value: identifier}
+	return identifier
+}
+
+func identifierFilterElement(identifier string) bson.E {
+	return bson.E{Key: "_id", Value: identifierMongoValue(identifier)}
 }
 
 func composeAndFilter(filter bson.D, andFilters ...bson.D) bson.D {
@@ -282,6 +296,142 @@ func composeAndFilter(filter bson.D, andFilters ...bson.D) bson.D {
 	clauses = append(clauses, filter)
 
 	return bson.D{{Key: "$and", Value: clauses}}
+}
+
+func marshalMongoCompatibleInsertValue(value any) (any, error) {
+	if getter, ok := value.(legacyBSONGetter); ok {
+		converted, err := getter.GetBSON()
+		if err != nil {
+			return nil, err
+		}
+		if converted != nil {
+			return legacyDocumentToMongoDocument(converted)
+		}
+	}
+
+	identifiable, ok := value.(elemental.Identifiable)
+	if !ok || identifiable.Identifier() == "" {
+		return value, nil
+	}
+
+	doc, err := asMongoDocument(value)
+	if err != nil {
+		return nil, err
+	}
+	if _, hasID := doc["_id"]; !hasID {
+		doc["_id"] = identifierMongoValue(identifiable.Identifier())
+	}
+	return doc, nil
+}
+
+func marshalMongoCompatibleUpdateDocument(value any) (bson.M, error) {
+	converted, err := marshalMongoCompatibleInsertValue(value)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := asMongoDocument(converted)
+	if err != nil {
+		return nil, err
+	}
+	delete(doc, "_id")
+	return doc, nil
+}
+
+func asMongoDocument(value any) (bson.M, error) {
+	data, err := bson.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	var doc bson.M
+	if err := bson.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+func legacyDocumentToMongoDocument(value any) (bson.M, error) {
+	data, err := legacybson.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	var doc bson.M
+	if err := bson.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+func decodeMongoCompatibleRaw(raw bson.Raw, target any) error {
+	if setter, ok := target.(legacyBSONSetter); ok {
+		if err := setter.SetBSON(legacybson.Raw{Kind: 3, Data: raw}); err != nil {
+			return err
+		}
+	} else {
+		if err := bson.Unmarshal(raw, target); err != nil {
+			return err
+		}
+	}
+
+	identifiable, ok := target.(elemental.Identifiable)
+	if !ok || identifiable.Identifier() != "" {
+		return nil
+	}
+
+	id, ok := extractIdentifierFromRaw(raw)
+	if !ok {
+		return nil
+	}
+	identifiable.SetIdentifier(id)
+	return nil
+}
+
+func decodeMongoCompatibleRawDocuments(raws []bson.Raw, dest elemental.Identifiables) error {
+	destValue := reflect.ValueOf(dest)
+	if destValue.Kind() != reflect.Pointer || destValue.IsNil() {
+		return fmt.Errorf("manipmongo: expected pointer destination for RetrieveMany, got %T", dest)
+	}
+
+	sliceValue := destValue.Elem()
+	if sliceValue.Kind() != reflect.Slice {
+		return fmt.Errorf("manipmongo: expected slice-backed destination for RetrieveMany, got %T", dest)
+	}
+
+	result := reflect.MakeSlice(sliceValue.Type(), 0, len(raws))
+	elemType := sliceValue.Type().Elem()
+	for _, raw := range raws {
+		decodedValue := reflect.New(elemType)
+		appendValue := decodedValue.Elem()
+		if elemType.Kind() == reflect.Pointer {
+			decodedValue = reflect.New(elemType.Elem())
+			appendValue = decodedValue
+		}
+
+		if err := decodeMongoCompatibleRaw(raw, decodedValue.Interface()); err != nil {
+			return err
+		}
+		result = reflect.Append(result, appendValue)
+	}
+
+	sliceValue.Set(result)
+	return nil
+}
+
+func extractIdentifierFromRaw(raw bson.Raw) (string, bool) {
+	var idDoc struct {
+		ID any `bson:"_id,omitempty"`
+	}
+	if err := bson.Unmarshal(raw, &idDoc); err != nil {
+		return "", false
+	}
+
+	switch id := idDoc.ID.(type) {
+	case bson.ObjectID:
+		return id.Hex(), true
+	case string:
+		return id, true
+	default:
+		return "", false
+	}
 }
 
 func convertUpsertOperationsToMongo(operations any) (bson.M, error) {
