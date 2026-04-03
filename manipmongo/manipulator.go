@@ -217,7 +217,12 @@ func (m *mongoManipulator) RetrieveMany(mctx manipulate.Context, dest elemental.
 				return nil, wrapMongoOperationContextError(mctx.Context(), queryCtx, err)
 			}
 			defer func() { _ = cur.Close(queryCtx) }()
-			return nil, wrapMongoOperationContextError(mctx.Context(), queryCtx, cur.All(queryCtx, dest))
+
+			var raws []bson.Raw
+			if err := cur.All(queryCtx, &raws); err != nil {
+				return nil, wrapMongoOperationContextError(mctx.Context(), queryCtx, err)
+			}
+			return nil, wrapMongoOperationContextError(mctx.Context(), queryCtx, decodeMongoCompatibleRawDocuments(raws, dest))
 		},
 		RetryInfo{
 			Operation:        elemental.OperationRetrieveMany,
@@ -324,7 +329,12 @@ func (m *mongoManipulator) Retrieve(mctx manipulate.Context, object elemental.Id
 				return nil, err
 			}
 			defer cancel()
-			return nil, wrapMongoOperationContextError(mctx.Context(), queryCtx, coll.FindOne(queryCtx, filter, findOpts).Decode(object))
+
+			var raw bson.Raw
+			if err := coll.FindOne(queryCtx, filter, findOpts).Decode(&raw); err != nil {
+				return nil, wrapMongoOperationContextError(mctx.Context(), queryCtx, err)
+			}
+			return nil, wrapMongoOperationContextError(mctx.Context(), queryCtx, decodeMongoCompatibleRaw(raw, object))
 		},
 		RetryInfo{
 			Operation:        elemental.OperationRetrieve,
@@ -398,8 +408,13 @@ func (m *mongoManipulator) Create(mctx manipulate.Context, object elemental.Iden
 			return spanErr(sp, manipulate.ErrCannotBuildQuery{Err: err})
 		}
 
+		setDoc, err := marshalMongoCompatibleUpdateDocument(object)
+		if err != nil {
+			return spanErr(sp, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("create: unable to prepare upsert document: %w", err)})
+		}
+
 		baseOps := bson.M{
-			"$set":         object,
+			"$set":         setDoc,
 			"$setOnInsert": bson.M{"_id": oid},
 		}
 		if len(ops) > 0 {
@@ -474,6 +489,10 @@ func (m *mongoManipulator) Create(mctx manipulate.Context, object elemental.Iden
 			}
 		}
 	} else {
+		insertValue, err := marshalMongoCompatibleInsertValue(object)
+		if err != nil {
+			return spanErr(sp, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("create: unable to prepare insert document: %w", err)})
+		}
 		if _, err := runQueryMongo(
 			mctx,
 			func() (any, error) {
@@ -482,7 +501,7 @@ func (m *mongoManipulator) Create(mctx manipulate.Context, object elemental.Iden
 					return nil, err
 				}
 				defer cancel()
-				r, err := coll.InsertOne(queryCtx, object)
+				r, err := coll.InsertOne(queryCtx, insertValue)
 				if err != nil {
 					return nil, wrapMongoOperationContextError(mctx.Context(), queryCtx, err)
 				}
@@ -557,6 +576,11 @@ func (m *mongoManipulator) Update(mctx manipulate.Context, object elemental.Iden
 	}
 	filter = composeAndFilter(filter, ands...)
 
+	setDoc, err := marshalMongoCompatibleUpdateDocument(object)
+	if err != nil {
+		return spanErr(sp, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("update: unable to prepare update document: %w", err)})
+	}
+
 	coll := m.makeCollection(object.Identity(), mctx.ReadConsistency(), mctx.WriteConsistency())
 	if _, err := runQueryMongo(
 		mctx,
@@ -566,7 +590,7 @@ func (m *mongoManipulator) Update(mctx manipulate.Context, object elemental.Iden
 				return nil, err
 			}
 			defer cancel()
-			r, err := coll.UpdateOne(queryCtx, filter, bson.M{"$set": object})
+			r, err := coll.UpdateOne(queryCtx, filter, bson.M{"$set": setDoc})
 			if err != nil {
 				return nil, wrapMongoOperationContextError(mctx.Context(), queryCtx, err)
 			}
