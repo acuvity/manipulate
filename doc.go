@@ -26,26 +26,40 @@
 // Each method of a Manipulator is taking a manipulate.Context as argument. The context is used
 // to pass additional informations like a Filter or some Parameters.
 //
+// Mongo-specific helpers in manipmongo now use official-driver MongoDB types.
+// See docs/mongodb-driver-migration.md for the breaking helper signature,
+// BSON, sharder, and timeout migration notes.
+//
 // Example for creating an object:
 //
 //	// Create a User from a generated Elemental model.
 //	user := models.NewUser()
 //	user.FullName, user.Login := "Antoine Mercadal", "primalmotion"
 //
-//	// Create Mongo Manipulator.
-//	m := manipmongo.NewMongoManipulator([]{"127.0.0.1"}, "test", "db-username", "db-password", "db-authsource", 512)
+//	// Create Mongo manipulator.
+//	m, err := manipmongo.New("mongodb://db-username:db-password@127.0.0.1:27017/test?authSource=db-authsource", "test")
+//	if err != nil {
+//	    panic(err)
+//	}
 //
 //	// Then create the User.
-//	m.Create(nil, user)
+//	if err := m.Create(nil, user); err != nil {
+//	    panic(err)
+//	}
 //
-// Example for retreving an object:
+// Example for retrieving an object:
 //
 //	// Create a Context with a filter.
-//	ctx := manipulate.NewContextWithFilter(
-//	    manipulate.NewFilterComposer().WithKey("login").Equals("primalmotion").
-//	    Done())
+//	ctx := manipulate.NewContext(
+//	    context.Background(),
+//	    manipulate.ContextOptionFilter(
+//	        elemental.NewFilterComposer().WithKey("login").Equals("primalmotion").Done(),
+//	    ),
+//	)
 //
 //	// Retrieve the users matching the filter.
 //	var users models.UserLists
-//	m.RetrieveMany(ctx, models.UserIdentity, &users)
+//	if err := m.RetrieveMany(ctx, &users); err != nil {
+//	    panic(err)
+//	}
 package manipulate // import "go.acuvity.ai/manipulate"
