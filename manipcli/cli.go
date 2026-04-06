@@ -83,12 +83,13 @@ func ManipulatorMakerFromFlags(options ...maniphttp.Option) ManipulatorMaker {
 			RootCAs:            rootCAPool,
 		}
 
-		opts := []maniphttp.Option{
+		opts := make([]maniphttp.Option, 0, 4+len(options)+len(innerOptions))
+		opts = append(opts,
 			maniphttp.OptionNamespace(namespace),
 			maniphttp.OptionTLSConfig(tlsConfig),
 			maniphttp.OptionEncoding(enc),
 			maniphttp.OptionToken(token),
-		}
+		)
 
 		opts = append(opts, options...)
 		opts = append(opts, innerOptions...)
