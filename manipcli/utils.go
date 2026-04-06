@@ -251,7 +251,15 @@ func readViperFlagsWithPrefix(specifiable elemental.AttributeSpecifiable, prefix
 
 		case "ref":
 
-			instance := reflect.New(fv.Type().Elem())
+			isPtr := fv.Type().Kind() == reflect.Ptr
+			var elemType reflect.Type
+			if isPtr {
+				elemType = fv.Type().Elem()
+			} else {
+				elemType = fv.Type()
+			}
+
+			instance := reflect.New(elemType)
 			specifiable, ok := instance.Interface().(elemental.AttributeSpecifiable)
 
 			if !ok {
@@ -281,7 +289,11 @@ func readViperFlagsWithPrefix(specifiable elemental.AttributeSpecifiable, prefix
 			}
 
 			if innerDidSet {
-				fv.Set(reflect.ValueOf(specifiable))
+				if isPtr {
+					fv.Set(reflect.ValueOf(specifiable))
+				} else {
+					fv.Set(reflect.ValueOf(specifiable).Elem())
+				}
 				didSet = true
 			}
 
