@@ -15,10 +15,12 @@ import (
 	"crypto/tls"
 	"time"
 
-	"github.com/globalsign/mgo/bson"
 	"go.acuvity.ai/elemental"
 	"go.acuvity.ai/manipulate"
+	bson "go.mongodb.org/mongo-driver/v2/bson"
 )
+
+const opaqueKeyUpsert = "manipmongo.upsert"
 
 // An Option represents a maniphttp.Manipulator option.
 type Option func(*config)
@@ -30,7 +32,8 @@ type config struct {
 	tlsConfig           *tls.Config
 	poolLimit           int
 	connectTimeout      time.Duration
-	socketTimeout       time.Duration
+	clientTimeout       time.Duration
+	operationTimeout    time.Duration
 	readConsistency     manipulate.ReadConsistency
 	writeConsistency    manipulate.WriteConsistency
 	sharder             Sharder
@@ -41,14 +44,8 @@ type config struct {
 	attributeSpecifiers map[elemental.Identity]elemental.AttributeSpecifiable
 }
 
-func newConfig() *config {
-	return &config{
-		poolLimit:        4096,
-		connectTimeout:   10 * time.Second,
-		socketTimeout:    60 * time.Second,
-		readConsistency:  manipulate.ReadConsistencyDefault,
-		writeConsistency: manipulate.WriteConsistencyDefault,
-	}
+type opaquer interface {
+	Opaque() map[string]any
 }
 
 // OptionCredentials sets the username and password to use for authentication.
@@ -68,6 +65,7 @@ func OptionTLS(tlsConfig *tls.Config) Option {
 }
 
 // OptionConnectionPoolLimit sets maximum size of the connection pool.
+// Passing 0 applies the package default (4096), preserving legacy behavior.
 func OptionConnectionPoolLimit(poolLimit int) Option {
 	return func(c *config) {
 		c.poolLimit = poolLimit
@@ -81,10 +79,20 @@ func OptionConnectionTimeout(connectTimeout time.Duration) Option {
 	}
 }
 
-// OptionSocketTimeout sets the socket timeout.
+// OptionClientTimeout sets the official driver's client-wide timeout.
+// Passing 0 leaves the client timeout unset.
+func OptionClientTimeout(clientTimeout time.Duration) Option {
+	return func(c *config) {
+		c.clientTimeout = clientTimeout
+	}
+}
+
+// OptionSocketTimeout sets the default per-operation timeout used by manipmongo
+// when the provided manipulate.Context has no deadline.
+// Passing 0 keeps the package default timeout.
 func OptionSocketTimeout(socketTimeout time.Duration) Option {
 	return func(c *config) {
-		c.socketTimeout = socketTimeout
+		c.operationTimeout = socketTimeout
 	}
 }
 
@@ -117,8 +125,8 @@ func OptionDefaultRetryFunc(f manipulate.RetryFunc) Option {
 	}
 }
 
-// OptionForceReadFilter allows to set a bson.D filter that
-// will always reducing the scope of the reads to that filter.
+// OptionForceReadFilter allows setting a bson.D filter that will always reduce
+// the scope of reads to that filter.
 func OptionForceReadFilter(f bson.D) Option {
 	return func(c *config) {
 		c.forcedReadFilter = f
@@ -177,13 +185,7 @@ func OptionTranslateKeysFromModelManager(manager elemental.ModelManager) Option 
 	}
 }
 
-const opaqueKeyUpsert = "manipmongo.upsert"
-
-type opaquer interface {
-	Opaque() map[string]any
-}
-
-// ContextOptionUpsert tells to use upsert for an Create operation.
+// ContextOptionUpsert tells to use upsert for a Create operation.
 // The given operation will be executed for the upsert command.
 // You cannot use "$set" which is always set to be the identifier.
 // If you do so, ContextOptionUpsert will panic.
@@ -196,7 +198,12 @@ func ContextOptionUpsert(operations bson.M) manipulate.ContextOption {
 	}
 
 	if soi, ok := operations["$setOnInsert"]; ok {
-		for k := range soi.(bson.M) {
+		soiMap, ok := soi.(bson.M)
+		if !ok {
+			panic("$setOnInsert in upsert operations must be of type bson.M")
+		}
+
+		for k := range soiMap {
 			if k == "_id" {
 				panic("cannot use $setOnInsert on _id in upsert operations")
 			}
@@ -205,5 +212,15 @@ func ContextOptionUpsert(operations bson.M) manipulate.ContextOption {
 
 	return func(c manipulate.Context) {
 		c.(opaquer).Opaque()[opaqueKeyUpsert] = operations
+	}
+}
+
+func newConfig() *config {
+	return &config{
+		poolLimit:        4096,
+		connectTimeout:   10 * time.Second,
+		operationTimeout: defaultOperationTimeout,
+		readConsistency:  manipulate.ReadConsistencyDefault,
+		writeConsistency: manipulate.WriteConsistencyDefault,
 	}
 }

@@ -177,6 +177,12 @@ func TestHTTP_New(t *testing.T) {
 		tm := maniptest.NewTestTokenManager()
 		tm.MockIssue(t, func(context.Context) (string, error) { return "old-token", nil })
 
+		allowTokenUpdate := make(chan struct{})
+		tm.MockRun(t, func(ctx context.Context, tokenCh chan string) {
+			<-allowTokenUpdate
+			tokenCh <- "new-token"
+		})
+
 		mm, err := New(context.Background(), "http://url.com", OptionTokenManager(tm))
 		m := mm.(*httpManipulator)
 
@@ -192,11 +198,13 @@ func TestHTTP_New(t *testing.T) {
 			So(m.currentPassword(), ShouldEqual, "old-token")
 		})
 
-		tm.MockRun(t, func(ctx context.Context, tokenCh chan string) {
-			tokenCh <- "new-token"
-		})
-
-		time.Sleep(2 * time.Second) // concourse is sometimes slow...
+		if err == nil {
+			close(allowTokenUpdate)
+			deadline := time.Now().Add(2 * time.Second) // concourse is sometimes slow...
+			for time.Now().Before(deadline) && m.currentPassword() != "new-token" {
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
 
 		Convey("Then password should be new-token", func() {
 			So(m.currentPassword(), ShouldEqual, "new-token")

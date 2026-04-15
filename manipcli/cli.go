@@ -90,7 +90,6 @@ func ManipulatorMakerFromFlags(options ...maniphttp.Option) ManipulatorMaker {
 			maniphttp.OptionEncoding(enc),
 			maniphttp.OptionToken(token),
 		)
-
 		opts = append(opts, options...)
 		opts = append(opts, innerOptions...)
 
