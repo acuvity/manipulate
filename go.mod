@@ -3,8 +3,8 @@ module go.acuvity.ai/manipulate
 go 1.24.6
 
 require (
-	go.acuvity.ai/elemental v0.0.0-20260403154455-893c40b4b95b
-	go.acuvity.ai/regolithe v0.0.0-20260108214434-eb28e7a6e391 // indirect
+	go.acuvity.ai/elemental v0.0.0-20260423213045-b41d7aac5a19
+	go.acuvity.ai/regolithe v0.0.0-20260423212828-c6b9b4d7394e // indirect
 	go.acuvity.ai/wsc v0.0.0-20250506232542-8de7ff436ec0
 )
 
@@ -44,7 +44,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.8.0 // indirect
-	github.com/go-git/go-git/v5 v5.17.1 // indirect
+	github.com/go-git/go-git/v5 v5.18.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1 // indirect
