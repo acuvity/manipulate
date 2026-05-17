@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -924,15 +925,114 @@ func TestHTTP_Delete(t *testing.T) {
 
 func TestHTTP_DeleteMany(t *testing.T) {
 
-	Convey("Given I have a manipulator", t, func() {
+	Convey("Given I have a manipulator and a working server that captures the request", t, func() {
 
-		mm, _ := New(context.Background(), "https://fake.com")
+		var gotMethod, gotPath, gotRawQuery string
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotMethod = r.Method
+			gotPath = r.URL.Path
+			gotRawQuery = r.URL.RawQuery
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		defer ts.Close()
+
+		mm, _ := New(context.Background(), ts.URL)
 		m := mm.(*httpManipulator)
 
-		err := m.DeleteMany(nil, testmodel.TaskIdentity)
+		Convey("When I DeleteMany without parent", func() {
 
-		Convey("Then err should not be nil", func() {
-			So(err, ShouldNotBeNil)
+			err := m.DeleteMany(nil, testmodel.TaskIdentity)
+
+			Convey("Then it sends DELETE to the bare collection URL", func() {
+				So(err, ShouldBeNil)
+				So(gotMethod, ShouldEqual, http.MethodDelete)
+				So(gotPath, ShouldEqual, "/tasks")
+				So(gotRawQuery, ShouldEqual, "")
+			})
+		})
+
+		Convey("When I DeleteMany under a parent", func() {
+
+			list := testmodel.NewList()
+			list.ID = "xxx"
+
+			ctx := manipulate.NewContext(
+				context.Background(),
+				manipulate.ContextOptionParent(list),
+			)
+
+			err := m.DeleteMany(ctx, testmodel.TaskIdentity)
+
+			Convey("Then it sends DELETE to the parent-scoped collection URL", func() {
+				So(err, ShouldBeNil)
+				So(gotMethod, ShouldEqual, http.MethodDelete)
+				// Parent (List) has Version() == 1, so the path picks up the
+				// /v/1/ prefix via computeVersion(parent.Version(), ...).
+				So(gotPath, ShouldEqual, "/v/1/lists/xxx/tasks")
+			})
+		})
+
+		Convey("When I DeleteMany with query parameters", func() {
+
+			list := testmodel.NewList()
+			list.ID = "xxx"
+
+			params := url.Values{}
+			params.Set("name", "todo-1")
+
+			ctx := manipulate.NewContext(
+				context.Background(),
+				manipulate.ContextOptionParent(list),
+				manipulate.ContextOptionParameters(params),
+			)
+
+			err := m.DeleteMany(ctx, testmodel.TaskIdentity)
+
+			Convey("Then query params from the context ride along on the URL", func() {
+				So(err, ShouldBeNil)
+				So(gotMethod, ShouldEqual, http.MethodDelete)
+				So(gotPath, ShouldEqual, "/v/1/lists/xxx/tasks")
+				So(gotRawQuery, ShouldContainSubstring, "name=todo-1")
+			})
+		})
+
+		Convey("When I DeleteMany under a parent that has no ID", func() {
+
+			list := testmodel.NewList()
+
+			ctx := manipulate.NewContext(
+				context.Background(),
+				manipulate.ContextOptionParent(list),
+			)
+
+			err := m.DeleteMany(ctx, testmodel.TaskIdentity)
+
+			Convey("Then err should be an ErrCannotBuildQuery", func() {
+				So(err, ShouldNotBeNil)
+				So(err, ShouldHaveSameTypeAs, manipulate.ErrCannotBuildQuery{})
+			})
+		})
+	})
+
+	Convey("Given I have a manipulator and a server that returns an error", t, func() {
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer ts.Close()
+
+		mm, _ := New(context.Background(), ts.URL)
+		m := mm.(*httpManipulator)
+
+		Convey("When I DeleteMany", func() {
+
+			err := m.DeleteMany(nil, testmodel.TaskIdentity)
+
+			Convey("Then the server error propagates", func() {
+				So(err, ShouldNotBeNil)
+			})
 		})
 	})
 }

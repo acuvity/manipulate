@@ -411,7 +411,32 @@ func (s *httpManipulator) Delete(mctx manipulate.Context, object elemental.Ident
 }
 
 func (s *httpManipulator) DeleteMany(mctx manipulate.Context, identity elemental.Identity) error {
-	return manipulate.ErrNotImplemented{Err: fmt.Errorf("DeleteMany not implemented in maniphttp")}
+
+	if mctx == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultGlobalContextTimeout)
+		defer cancel()
+		mctx = manipulate.NewContext(ctx)
+	}
+
+	sp := tracing.StartTrace(mctx, fmt.Sprintf("maniphttp.delete_many.%s", identity.Category))
+	defer sp.Finish()
+
+	url, err := s.getURLForChildrenIdentity(mctx.Parent(), identity, 0, mctx.Version())
+	if err != nil {
+		sp.SetTag("error", true)
+		sp.LogFields(log.Error(err))
+		return manipulate.ErrCannotBuildQuery{Err: err}
+	}
+
+	response, err := s.send(mctx, http.MethodDelete, url, nil, nil, sp)
+	if err != nil {
+		sp.SetTag("error", true)
+		sp.LogFields(log.Error(err))
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	return nil
 }
 
 func (s *httpManipulator) Count(mctx manipulate.Context, identity elemental.Identity) (int, error) {
