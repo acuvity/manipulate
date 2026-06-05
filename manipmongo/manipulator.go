@@ -14,6 +14,7 @@ package manipmongo
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -94,7 +95,8 @@ func New(url string, db string, opts ...Option) (manipulate.TransactionalManipul
 		clientOpts.SetTimeout(cfg.clientTimeout)
 	}
 
-	if cfg.username != "" || cfg.password != "" || cfg.authsource != "" {
+	if (cfg.username != "" || cfg.password != "" || cfg.authsource != "") &&
+		!strings.Contains(strings.ToUpper(url), "AUTHMECHANISM=MONGODB-X509") {
 		clientOpts.SetAuth(options.Credential{
 			Username:   cfg.username,
 			Password:   cfg.password,

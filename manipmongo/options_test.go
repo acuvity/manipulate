@@ -152,6 +152,77 @@ func TestNewPanicsOnInvalidForcedReadFilter(t *testing.T) {
 	})
 }
 
+func TestNewSkipsOptionCredentialsWhenURIAuthMechanismIsX509(t *testing.T) {
+	originalConnect := mongoConnectFn
+	originalPing := mongoPingFn
+	originalDisconnect := mongoDisconnectFn
+	defer func() {
+		mongoConnectFn = originalConnect
+		mongoPingFn = originalPing
+		mongoDisconnectFn = originalDisconnect
+	}()
+
+	var captured *mongooptions.ClientOptions
+	mongoConnectFn = func(opts ...*mongooptions.ClientOptions) (*mongo.Client, error) {
+		captured = opts[0]
+		return &mongo.Client{}, nil
+	}
+	mongoPingFn = func(*mongo.Client, context.Context) error { return nil }
+	mongoDisconnectFn = func(*mongo.Client, context.Context) error { return nil }
+
+	_, err := New(
+		"mongodb://127.0.0.1:27017/?authMechanism=MONGODB-X509&authSource=%24external",
+		"test",
+		OptionCredentials("user", "pass", "$external"),
+	)
+	if err != nil {
+		t.Fatalf("New returned unexpected error: %v", err)
+	}
+	if captured == nil || captured.Auth == nil {
+		t.Fatalf("expected auth options from URI to be present")
+	}
+	if captured.Auth.AuthMechanism != "MONGODB-X509" {
+		t.Fatalf("expected auth mechanism MONGODB-X509, got %q", captured.Auth.AuthMechanism)
+	}
+	if captured.Auth.Username != "" || captured.Auth.Password != "" {
+		t.Fatalf("expected OptionCredentials not to overwrite URI x509 auth, got user=%q", captured.Auth.Username)
+	}
+}
+
+func TestNewAppliesOptionCredentialsWhenURIAuthMechanismIsNotX509(t *testing.T) {
+	originalConnect := mongoConnectFn
+	originalPing := mongoPingFn
+	originalDisconnect := mongoDisconnectFn
+	defer func() {
+		mongoConnectFn = originalConnect
+		mongoPingFn = originalPing
+		mongoDisconnectFn = originalDisconnect
+	}()
+
+	var captured *mongooptions.ClientOptions
+	mongoConnectFn = func(opts ...*mongooptions.ClientOptions) (*mongo.Client, error) {
+		captured = opts[0]
+		return &mongo.Client{}, nil
+	}
+	mongoPingFn = func(*mongo.Client, context.Context) error { return nil }
+	mongoDisconnectFn = func(*mongo.Client, context.Context) error { return nil }
+
+	_, err := New(
+		"mongodb://127.0.0.1:27017/?authMechanism=SCRAM-SHA-256&authSource=admin",
+		"test",
+		OptionCredentials("user", "pass", "admin"),
+	)
+	if err != nil {
+		t.Fatalf("New returned unexpected error: %v", err)
+	}
+	if captured == nil || captured.Auth == nil {
+		t.Fatalf("expected auth options to be present")
+	}
+	if captured.Auth.Username != "user" || captured.Auth.Password != "pass" || captured.Auth.AuthSource != "admin" {
+		t.Fatalf("expected OptionCredentials to be applied, got auth=%+v", captured.Auth)
+	}
+}
+
 type testOptionsSharder struct{}
 
 func (*testOptionsSharder) Shard(manipulate.TransactionalManipulator, manipulate.Context, elemental.Identifiable) error {
