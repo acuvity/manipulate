@@ -120,6 +120,7 @@ func generateListCommandForIdentity(identity elemental.Identity, modelManager el
 	cmd.Flags().StringP(flagNext, "N", "", "Pages after next ID.")
 	cmd.Flags().IntP(flagLimit, "L", 0, "Pages number to retrieve after Next ID.")
 	cmd.Flags().StringP(flagFilter, "f", "", "Query filter.")
+	cmd.Flags().StringP(flagOutputTemplate, "", "", "Template the output using a Golang template.")
 	cmd.Flags().StringSliceP(flagOrder, "O", nil, "Ordering of the result.")
 	cmd.Flags().StringP(flagParent, "", "", "Provide information about parent resource. Format `name/ID`")
 
