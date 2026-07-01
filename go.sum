@@ -335,8 +335,8 @@ github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9de
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
-go.acuvity.ai/elemental v0.0.0-20260601175251-78f998107f34 h1:HFoaqZS6VIRQ8JGdmHtOFjrDgJWdzOEaTqwg6ZX3FAQ=
-go.acuvity.ai/elemental v0.0.0-20260601175251-78f998107f34/go.mod h1:wjh4+rdHMPl8+xAHg0m63ek+3EOXjg4soytuNlkhYXo=
+go.acuvity.ai/elemental v0.0.0-20260701180328-2d9c5f46ac65 h1:W7KiMisNNSG2ASs/hxusfRtsx59F1LnryaGXaWpA3Hg=
+go.acuvity.ai/elemental v0.0.0-20260701180328-2d9c5f46ac65/go.mod h1:wjh4+rdHMPl8+xAHg0m63ek+3EOXjg4soytuNlkhYXo=
 go.acuvity.ai/regolithe v0.0.0-20260601174230-81cdfce253df h1:P5k46yEISCVy6kpprsqXoaQOIE3vd+vMu5zZL3w5wz4=
 go.acuvity.ai/regolithe v0.0.0-20260601174230-81cdfce253df/go.mod h1:KuX0NAZzZX76xCIhsDcnKk73XDQBrNrJMXorokwCMto=
 go.acuvity.ai/wsc v1.0.0 h1:6uvdcDg9/Dhj4LSIyFeBudmiHKvlTQ9wiCl9un7SMOY=

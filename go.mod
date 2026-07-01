@@ -3,7 +3,7 @@ module go.acuvity.ai/manipulate
 go 1.26.0
 
 require (
-	go.acuvity.ai/elemental v0.0.0-20260601175251-78f998107f34
+	go.acuvity.ai/elemental v0.0.0-20260701180328-2d9c5f46ac65
 	go.acuvity.ai/regolithe v0.0.0-20260601174230-81cdfce253df // indirect
 	go.acuvity.ai/wsc v1.0.0
 )
