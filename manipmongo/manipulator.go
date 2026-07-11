@@ -175,12 +175,18 @@ func (m *mongoManipulator) RetrieveMany(mctx manipulate.Context, dest elemental.
 		return spanErr(sp, err)
 	}
 
+	fParent, err := makeParentFilter(mctx)
+	if err != nil {
+		return spanErr(sp, err)
+	}
+
 	pipeline, err := makePipeline(
 		attrSpec,
 		makePreviousRetriever(mctx.Context(), coll, m.operationTimeout),
 		fSharding,
 		makeNamespaceFilter(mctx),
 		m.forcedReadFilter,
+		fParent,
 		makeUserFilter(mctx, attrSpec),
 		order,
 		mctx.After(),
@@ -374,6 +380,17 @@ func (m *mongoManipulator) Create(mctx manipulate.Context, object elemental.Iden
 	oid := bson.NewObjectID()
 	object.SetIdentifier(oid.Hex())
 
+	if parent := mctx.Parent(); parent != nil {
+		if parent.Identifier() == "" {
+			return spanErr(sp, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("parent '%s' has no identifier set", parent.Identity().Name)})
+		}
+		p, ok := object.(elemental.Parentable)
+		if !ok {
+			return spanErr(sp, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("object '%s' does not support a parent", object.Identity().Name)})
+		}
+		p.SetParentID(parent.Identifier())
+	}
+
 	if f := mctx.Finalizer(); f != nil {
 		if err := f(object); err != nil {
 			return spanErr(sp, err)
@@ -455,6 +472,13 @@ func (m *mongoManipulator) Create(mctx manipulate.Context, object elemental.Iden
 		}
 		if m.forcedReadFilter != nil {
 			ands = append(ands, m.forcedReadFilter)
+		}
+		fParent, err := makeParentFilter(mctx)
+		if err != nil {
+			return spanErr(sp, err)
+		}
+		if len(fParent) > 0 {
+			ands = append(ands, fParent)
 		}
 		filter = composeAndFilter(filter, ands...)
 
@@ -735,6 +759,13 @@ func (m *mongoManipulator) DeleteMany(mctx manipulate.Context, identity elementa
 	if m.forcedReadFilter != nil {
 		ands = append(ands, m.forcedReadFilter)
 	}
+	fParent, err := makeParentFilter(mctx)
+	if err != nil {
+		return spanErr(sp, err)
+	}
+	if len(fParent) > 0 {
+		ands = append(ands, fParent)
+	}
 	filter = composeAndFilter(filter, ands...)
 	sp.LogFields(log.Object("filter", filter))
 
@@ -787,12 +818,18 @@ func (m *mongoManipulator) Count(mctx manipulate.Context, identity elemental.Ide
 		return 0, spanErr(sp, err)
 	}
 
+	fParent, err := makeParentFilter(mctx)
+	if err != nil {
+		return 0, spanErr(sp, err)
+	}
+
 	pipeline, err := makePipeline(
 		attrSpec,
 		makePreviousRetriever(mctx.Context(), coll, m.operationTimeout),
 		fSharding,
 		makeNamespaceFilter(mctx),
 		m.forcedReadFilter,
+		fParent,
 		makeUserFilter(mctx, attrSpec),
 		nil,
 		mctx.After(),

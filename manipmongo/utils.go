@@ -620,12 +620,30 @@ func makeUserFilter(mctx manipulate.Context, attrSpec elemental.AttributeSpecifi
 	return CompileFilter(f, opts...)
 }
 
+// makeParentFilter builds a filter constraining results to the children of the
+// parent set on the context via manipulate.ContextOptionParent. It returns a nil
+// filter when no parent is set.
+func makeParentFilter(mctx manipulate.Context) (bson.D, error) {
+
+	parent := mctx.Parent()
+	if parent == nil {
+		return nil, nil
+	}
+
+	if parent.Identifier() == "" {
+		return nil, manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("parent '%s' has no identifier set", parent.Identity().Name)}
+	}
+
+	return bson.D{{Key: "parentid", Value: parent.Identifier()}}, nil
+}
+
 func makePipeline(
 	attrSpec elemental.AttributeSpecifiable,
 	retriever func(id bson.ObjectID) (bson.M, error),
 	shardFilter bson.D,
 	namespaceFilter bson.D,
 	forcedReadFilter bson.D,
+	parentFilter bson.D,
 	userFilter bson.D,
 	order []string,
 	after string,
@@ -648,6 +666,11 @@ func makePipeline(
 	// Add forced match.
 	if len(forcedReadFilter) > 0 {
 		pipe = append(pipe, bson.D{{Key: "$match", Value: forcedReadFilter}})
+	}
+
+	// Add parent match.
+	if len(parentFilter) > 0 {
+		pipe = append(pipe, bson.D{{Key: "$match", Value: parentFilter}})
 	}
 
 	// Ordering.
