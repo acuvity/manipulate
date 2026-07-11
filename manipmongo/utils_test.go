@@ -73,6 +73,7 @@ func TestMakePipeline(t *testing.T) {
 		mongobson.D{{Key: "tenant", Value: "acuvity"}},
 		mongobson.D{{Key: "namespace", Value: "/ns"}},
 		mongobson.D{{Key: "active", Value: true}},
+		mongobson.D{{Key: "parentid", Value: "6a1dbccfbb0c837c0bf039d5"}},
 		mongobson.D{{Key: "status", Value: "ready"}},
 		[]string{"name"},
 		afterID.Hex(),
@@ -82,8 +83,8 @@ func TestMakePipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("makePipeline returned unexpected error: %v", err)
 	}
-	if len(pipe) != 8 {
-		t.Fatalf("unexpected pipeline length: got %d want 8", len(pipe))
+	if len(pipe) != 9 {
+		t.Fatalf("unexpected pipeline length: got %d want 9", len(pipe))
 	}
 	if pipe[0][0].Key != "$match" {
 		t.Fatalf("unexpected first stage: %#v", pipe[0])
@@ -91,7 +92,7 @@ func TestMakePipeline(t *testing.T) {
 }
 
 func TestMakePipelineInvalidAfter(t *testing.T) {
-	_, err := makePipeline(nil, func(mongobson.ObjectID) (mongobson.M, error) { return nil, nil }, nil, nil, nil, nil, nil, "bad-after", 0, nil)
+	_, err := makePipeline(nil, func(mongobson.ObjectID) (mongobson.M, error) { return nil, nil }, nil, nil, nil, nil, nil, nil, "bad-after", 0, nil)
 	if err == nil {
 		t.Fatalf("expected invalid after error")
 	}
@@ -383,5 +384,61 @@ func assertErrorKind(t *testing.T, err error, want errorKind) {
 		}
 	default:
 		t.Fatalf("unsupported error kind %q", want)
+	}
+}
+
+func TestMakeParentFilter(t *testing.T) {
+
+	const parentID = "6a1dbccfbb0c837c0bf039d5"
+
+	parentWithID := &mongoIntegrationObject{}
+	parentWithID.SetIdentifier(parentID)
+
+	parentWithoutID := &mongoIntegrationObject{}
+
+	tests := []struct {
+		name       string
+		mctx       manipulate.Context
+		wantFilter mongobson.D
+		wantErr    bool
+	}{
+		{
+			name:       "no parent set",
+			mctx:       manipulate.NewContext(context.Background()),
+			wantFilter: nil,
+			wantErr:    false,
+		},
+		{
+			name:       "parent with identifier",
+			mctx:       manipulate.NewContext(context.Background(), manipulate.ContextOptionParent(parentWithID)),
+			wantFilter: mongobson.D{{Key: "parentid", Value: parentID}},
+			wantErr:    false,
+		},
+		{
+			name:    "parent without identifier",
+			mctx:    manipulate.NewContext(context.Background(), manipulate.ContextOptionParent(parentWithoutID)),
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := makeParentFilter(test.mctx)
+			if test.wantErr {
+				if err == nil {
+					t.Fatalf("expected an error, got none")
+				}
+				if !errors.As(err, &manipulate.ErrCannotBuildQuery{}) {
+					t.Fatalf("expected ErrCannotBuildQuery, got %T: %v", err, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(got, test.wantFilter) {
+				t.Fatalf("filter mismatch:\n got: %#v\nwant: %#v", got, test.wantFilter)
+			}
+		})
 	}
 }
