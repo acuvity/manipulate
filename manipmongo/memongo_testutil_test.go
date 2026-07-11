@@ -31,8 +31,7 @@ const mongoTestDockerImageEnv = "MONGO_TEST_DOCKER_IMAGE"
 const mongoTestDockerStartupTimeoutEnv = "MONGO_TEST_DOCKER_STARTUP_TIMEOUT"
 const mongoTestDockerDisableEnv = "MONGO_TEST_DOCKER_DISABLE"
 
-// Default to a stable server image for integration tests.
-const defaultMongoTestDockerImage = "mongo:4.4.26"
+const defaultMongoTestDockerImage = "mongo:8"
 const defaultMongoTestDockerStartupTimeout = 60 * time.Second
 
 var dockerCommand = func(args ...string) ([]byte, error) {
