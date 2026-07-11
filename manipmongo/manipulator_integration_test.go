@@ -52,6 +52,8 @@ func (o *mongoIntegrationObject) Identity() elemental.Identity      { return mon
 func (o *mongoIntegrationObject) String() string                    { return o.Name }
 func (o *mongoIntegrationObject) Version() int                      { return 0 }
 func (o *mongoIntegrationObject) ValueForAttribute(name string) any { return nil }
+func (o *mongoIntegrationObject) GetParentID() string               { return o.ParentID }
+func (o *mongoIntegrationObject) SetParentID(id string)             { o.ParentID = id }
 
 type mongoIntegrationObjects []*mongoIntegrationObject
 
@@ -321,6 +323,104 @@ func TestOfficialManipulatorCRUDAndHelpersWithMemongo(t *testing.T) {
 
 	if err := SetConsistencyMode(manipulator, manipulate.ReadConsistencyNearest, manipulate.WriteConsistencyStrong); err != nil {
 		t.Fatalf("set mongo consistency mode failed: %v", err)
+	}
+}
+
+func TestOfficialManipulatorParentScopingWithMemongo(t *testing.T) {
+	uri, db := requireMemongo(t)
+
+	manipulator, err := New(uri, db, OptionForceReadFilter(mongobson.D{}))
+	if err != nil {
+		t.Fatalf("unable to create official manipulator: %v", err)
+	}
+
+	parentA := &mongoIntegrationObject{}
+	parentA.SetIdentifier(mongobson.NewObjectID().Hex())
+	parentB := &mongoIntegrationObject{}
+	parentB.SetIdentifier(mongobson.NewObjectID().Hex())
+
+	ctxParentA := manipulate.NewContext(context.Background(), manipulate.ContextOptionParent(parentA))
+	ctxParentB := manipulate.NewContext(context.Background(), manipulate.ContextOptionParent(parentB))
+
+	// Creating with a parent must stamp parentid onto the stored object.
+	for _, name := range []string{"child-a1", "child-a2"} {
+		child := newMongoIntegrationObject(name)
+		if err := manipulator.Create(ctxParentA, child); err != nil {
+			t.Fatalf("create child '%s' under parentA failed: %v", name, err)
+		}
+		if child.ParentID != parentA.Identifier() {
+			t.Fatalf("expected child '%s' parentid '%s', got '%s'", name, parentA.Identifier(), child.ParentID)
+		}
+	}
+	childB := newMongoIntegrationObject("child-b1")
+	if err := manipulator.Create(ctxParentB, childB); err != nil {
+		t.Fatalf("create child under parentB failed: %v", err)
+	}
+
+	// RetrieveMany scoped to parentA must only see parentA's children.
+	var listA mongoIntegrationObjects
+	if err := manipulator.RetrieveMany(ctxParentA, &listA); err != nil {
+		t.Fatalf("retrievemany under parentA failed: %v", err)
+	}
+	if len(listA) != 2 {
+		t.Fatalf("expected 2 children under parentA, got %d", len(listA))
+	}
+	for _, o := range listA {
+		if o.ParentID != parentA.Identifier() {
+			t.Fatalf("retrievemany under parentA returned foreign child with parentid '%s'", o.ParentID)
+		}
+	}
+
+	// Count scoped to parentA must be 2; unscoped count must be 3.
+	countA, err := manipulator.Count(ctxParentA, mongoIntegrationIdentity)
+	if err != nil {
+		t.Fatalf("count under parentA failed: %v", err)
+	}
+	if countA != 2 {
+		t.Fatalf("expected count 2 under parentA, got %d", countA)
+	}
+	countAll, err := manipulator.Count(manipulate.NewContext(context.Background()), mongoIntegrationIdentity)
+	if err != nil {
+		t.Fatalf("count all failed: %v", err)
+	}
+	if countAll != 3 {
+		t.Fatalf("expected 3 objects total, got %d", countAll)
+	}
+
+	// DeleteMany scoped to parentA must only delete parentA's children.
+	if err := manipulator.DeleteMany(ctxParentA, mongoIntegrationIdentity); err != nil {
+		t.Fatalf("deletemany under parentA failed: %v", err)
+	}
+	countAfter, err := manipulator.Count(manipulate.NewContext(context.Background()), mongoIntegrationIdentity)
+	if err != nil {
+		t.Fatalf("count after deletemany failed: %v", err)
+	}
+	if countAfter != 1 {
+		t.Fatalf("expected 1 object remaining after scoped deletemany, got %d", countAfter)
+	}
+	var listB mongoIntegrationObjects
+	if err := manipulator.RetrieveMany(ctxParentB, &listB); err != nil {
+		t.Fatalf("retrievemany under parentB failed: %v", err)
+	}
+	if len(listB) != 1 || listB[0].ParentID != parentB.Identifier() {
+		t.Fatalf("expected parentB's child to survive scoped deletemany, got %#v", listB)
+	}
+
+	// Create with a parent that has no identifier must error.
+	orphanParent := &mongoIntegrationObject{}
+	if err := manipulator.Create(
+		manipulate.NewContext(context.Background(), manipulate.ContextOptionParent(orphanParent)),
+		newMongoIntegrationObject("should-fail"),
+	); err == nil {
+		t.Fatalf("expected error creating with a parent without identifier")
+	}
+
+	// Create with a parent but a non-parentable object must error.
+	if err := manipulator.Create(
+		ctxParentA,
+		&mongoLegacyCompatObject{Name: "not-parentable"},
+	); err == nil {
+		t.Fatalf("expected error creating a non-parentable object with a parent")
 	}
 }
 
