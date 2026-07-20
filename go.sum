@@ -207,10 +207,10 @@ github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 h1:ilQV1hzziu+LLM3zU
 github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78/go.mod h1:aL8wCCfTfSfmXjznFBSZNN13rSJjlIOI1fUNAtF7rmI=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
-go.acuvity.ai/elemental v0.0.0-20260714043849-103fa34baaeb h1:dLIKdxEsH1ZioMfIR+0Xuc/GnOioEpHaf4ZE43dIKkY=
-go.acuvity.ai/elemental v0.0.0-20260714043849-103fa34baaeb/go.mod h1:O8cPy9ELFRHFmP0Uoj17NILwEX0M4aORbtyAHhU2N64=
-go.acuvity.ai/regolithe v0.0.0-20260601174230-81cdfce253df h1:P5k46yEISCVy6kpprsqXoaQOIE3vd+vMu5zZL3w5wz4=
-go.acuvity.ai/regolithe v0.0.0-20260601174230-81cdfce253df/go.mod h1:KuX0NAZzZX76xCIhsDcnKk73XDQBrNrJMXorokwCMto=
+go.acuvity.ai/elemental v0.0.0-20260720173955-4a8a8022f79a h1:wXzHeSgA4g2nHULevlbHRE16Y2wdGBs7R8ONt6EeQ/k=
+go.acuvity.ai/elemental v0.0.0-20260720173955-4a8a8022f79a/go.mod h1:GqBVZJ3tp9KOPw7NHSUvX9AeEEaPjLOACH9KCVXUd8E=
+go.acuvity.ai/regolithe v0.0.0-20260720171950-8be0620cfb64 h1:XrXAvJbkacmSZITvFJPiuzC5X09eSSW+znaDJV5nizk=
+go.acuvity.ai/regolithe v0.0.0-20260720171950-8be0620cfb64/go.mod h1:KuX0NAZzZX76xCIhsDcnKk73XDQBrNrJMXorokwCMto=
 go.acuvity.ai/tg v1.0.1-0.20260708162706-306a91e4d7dd h1:mNHaN6Es8aWBrGIuhJ6b97wHNCq0GqrHMlPQiqk7sa8=
 go.acuvity.ai/tg v1.0.1-0.20260708162706-306a91e4d7dd/go.mod h1:VTxivoFjkn1/tBGfAL7cR2KFgEDWokJuuO0Odvx6s4k=
 go.acuvity.ai/wsc v1.0.0 h1:6uvdcDg9/Dhj4LSIyFeBudmiHKvlTQ9wiCl9un7SMOY=
