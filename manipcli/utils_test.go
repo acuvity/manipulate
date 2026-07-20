@@ -565,6 +565,55 @@ func Test_nameToFlag(t *testing.T) {
 			},
 			"b2b-and-co",
 		},
+		{
+			"pluralized acronym at end",
+			args{
+				name: "publicURLs",
+			},
+			"public-urls",
+		},
+		{
+			"pluralized acronym only",
+			args{
+				name: "URLs",
+			},
+			"urls",
+		},
+		{
+			"pluralized two-letter acronym (minimum length treated as plural)",
+			args{
+				name: "subjectKeyIDs",
+			},
+			"subject-key-ids",
+		},
+		{
+			"pluralized acronym in the middle",
+			args{
+				name: "reportVisitedURLsInterval",
+			},
+			"report-visited-urls-interval",
+		},
+		{
+			"acronym followed by a word is not a plural",
+			args{
+				name: "IDPIssuer",
+			},
+			"idp-issuer",
+		},
+		{
+			"acronym with a number is preserved",
+			args{
+				name: "principalUserX509Field",
+			},
+			"principal-user-x509-field",
+		},
+		{
+			"single capital before s is not a plural acronym",
+			args{
+				name: "thingIsGood",
+			},
+			"thing-is-good",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

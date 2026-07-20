@@ -406,15 +406,29 @@ func setViperFlagsWithPrefix(cmd *cobra.Command, specifiable elemental.Attribute
 	return nil
 }
 
+var matchAcronymPluralMid = regexp.MustCompile("([A-Z]{2,})s([A-Z0-9])")
+var matchAcronymPluralEnd = regexp.MustCompile("([A-Z]{2,})s$")
 var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
 var matchAllNumber = regexp.MustCompile("([a-z])([0-9]+)")
 var matchAllCap = regexp.MustCompile("([a-z])([A-Z])")
+var matchMultiDash = regexp.MustCompile("-+")
 
 func nameToFlag(name string) string {
-	flag := matchFirstCap.ReplaceAllString(name, "${1}-${2}")
+	// normalize pluralized acronyms into a single lowercased word fenced by dashes
+	flag := matchAcronymPluralMid.ReplaceAllStringFunc(name, func(m string) string {
+		g := matchAcronymPluralMid.FindStringSubmatch(m)
+		return "-" + strings.ToLower(g[1]+"s") + "-" + g[2]
+	})
+	flag = matchAcronymPluralEnd.ReplaceAllStringFunc(flag, func(m string) string {
+		g := matchAcronymPluralEnd.FindStringSubmatch(m)
+		return "-" + strings.ToLower(g[1]+"s")
+	})
+	flag = matchFirstCap.ReplaceAllString(flag, "${1}-${2}")
 	flag = matchAllNumber.ReplaceAllString(flag, "${1}-${2}")
 	flag = matchAllCap.ReplaceAllString(flag, "${1}-${2}")
-	return strings.ToLower(flag)
+	flag = strings.ToLower(flag)
+	flag = matchMultiDash.ReplaceAllString(flag, "-")
+	return strings.Trim(flag, "-")
 }
 
 type commonValues struct {
