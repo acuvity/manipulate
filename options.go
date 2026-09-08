@@ -41,6 +41,15 @@ func ContextOptionPropagated(p bool) ContextOption {
 	}
 }
 
+// ContextOptionPropagatedHidden sets the propagated hidden option of the context.
+// This may be ignored by the manipulator implementation. (for instance it will be
+// a noop for maniphttp)
+func ContextOptionPropagatedHidden(p bool) ContextOption {
+	return func(c Context) {
+		c.(*mcontext).propagatedHidden = p
+	}
+}
+
 // ContextOptionRecursive sets the recursive option of the context.
 func ContextOptionRecursive(r bool) ContextOption {
 	return func(c Context) {

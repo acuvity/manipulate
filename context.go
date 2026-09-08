@@ -88,6 +88,7 @@ type Context interface {
 	Recursive() bool
 	Namespace() string
 	Propagated() bool
+	PropagatedHidden() bool
 	Credentials() (string, string)
 	Parameters() url.Values
 	Parent() elemental.Identifiable
@@ -140,6 +141,7 @@ type mcontext struct {
 	overrideProtection   bool
 	recursive            bool
 	propagated           bool
+	propagatedHidden     bool
 }
 
 // NewContext creates a context with the given ContextOption.
@@ -178,9 +180,7 @@ func (c *mcontext) Derive(options ...ContextOption) Context {
 	var paramsCopy url.Values
 	if len(c.parameters) > 0 {
 		paramsCopy = url.Values{}
-		for k, v := range c.parameters {
-			paramsCopy[k] = v
-		}
+		maps.Copy(paramsCopy, c.parameters)
 	}
 
 	copied := &mcontext{
@@ -193,6 +193,7 @@ func (c *mcontext) Derive(options ...ContextOption) Context {
 		filter:               c.filter,
 		namespace:            c.namespace,
 		propagated:           c.propagated,
+		propagatedHidden:     c.propagatedHidden,
 		order:                append([]string{}, c.order...),
 		overrideProtection:   c.overrideProtection,
 		page:                 c.page,
@@ -267,6 +268,9 @@ func (c *mcontext) Namespace() string { return c.namespace }
 
 // Propagated returns the propagate value
 func (c *mcontext) Propagated() bool { return c.propagated }
+
+// PropagatedHidden returns the propagateHidden value
+func (c *mcontext) PropagatedHidden() bool { return c.propagatedHidden }
 
 // Parameters returns the parameters.
 func (c *mcontext) Parameters() url.Values { return c.parameters }

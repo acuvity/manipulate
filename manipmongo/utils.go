@@ -594,7 +594,13 @@ func makeNamespaceFilter(mctx manipulate.Context) bson.D {
 
 	f := manipulate.NewNamespaceFilter(mctx.Namespace(), mctx.Recursive())
 	if mctx.Propagated() {
-		if fp := manipulate.NewPropagationFilter(mctx.Namespace()); fp != nil {
+
+		pfunc := manipulate.NewPropagationFilter
+		if mctx.PropagatedHidden() {
+			pfunc = manipulate.NewPropagationFilterWithHidden
+		}
+
+		if fp := pfunc(mctx.Namespace()); fp != nil {
 			f = elemental.NewFilterComposer().Or(f, fp).Done()
 		}
 	}

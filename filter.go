@@ -79,7 +79,15 @@ func NewNamespaceFilterWithCustomProperty(propertyName string, namespace string,
 // the namespace ancestors chain and propagate down.
 func NewPropagationFilter(namespace string) *elemental.Filter {
 
-	return NewPropagationFilterWithCustomProperty("propagate", "namespace", namespace, nil)
+	return NewPropagationFilterWithCustomProperty("propagate", "namespace", "hidden", namespace, true, nil)
+}
+
+// NewPropagationFilterWithHidden returns additional namespace filter matching objects that are in
+// the namespace ancestors chain and propagate down. It will include the hidden propagated
+// object. Use this carefully.
+func NewPropagationFilterWithHidden(namespace string) *elemental.Filter {
+
+	return NewPropagationFilterWithCustomProperty("propagate", "namespace", "hidden", namespace, false, nil)
 }
 
 // NewPropagationFilterWithCustomProperty returns additional namespace filter matching objects that are in
@@ -90,7 +98,9 @@ func NewPropagationFilter(namespace string) *elemental.Filter {
 func NewPropagationFilterWithCustomProperty(
 	propagationPropName string,
 	namespacePropName string,
+	hiddenPropname string,
 	namespace string,
+	filterHidden bool,
 	addititionalFiltering *elemental.Filter,
 ) *elemental.Filter {
 
@@ -101,6 +111,10 @@ func NewPropagationFilterWithCustomProperty(
 		f := NewNamespaceFilterWithCustomProperty(namespacePropName, pns, false).
 			WithKey(propagationPropName).Equals(true).
 			Done()
+
+		if filterHidden {
+			f = f.WithKey(hiddenPropname).NotEquals(true).Done()
+		}
 
 		if addititionalFiltering != nil {
 			f.And(addititionalFiltering)

@@ -136,6 +136,7 @@ func TestContext_Derive(t *testing.T) {
 			recursive:            true,
 			overrideProtection:   true,
 			propagated:           true,
+			propagatedHidden:     true,
 			createFinalizer:      nil,
 			version:              4,
 			externalTrackingID:   "externalTrackingID",
@@ -191,6 +192,7 @@ func TestContext_Derive(t *testing.T) {
 				So(copied.ReadConsistency(), ShouldEqual, mctx.readConsistency)
 				So(copied.Recursive(), ShouldEqual, mctx.recursive)
 				So(copied.Propagated(), ShouldEqual, mctx.propagated)
+				So(copied.PropagatedHidden(), ShouldEqual, mctx.propagatedHidden)
 				So(copied.RetryFunc(), ShouldEqual, rfunc)
 				So(copied.String(), ShouldEqual, mctx.String())
 				So(copied.TransactionID(), ShouldEqual, mctx.transactionID)
