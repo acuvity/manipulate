@@ -92,7 +92,7 @@ func Test_New(t *testing.T) {
 				So(subCommands[6].Name(), ShouldEqual, "listen")
 				So(subCommands[7].Name(), ShouldEqual, "update")
 
-				expectedSubCommands := []string{"list", "task"}
+				expectedSubCommands := []string{"list", "subtask", "task"}
 
 				assertIdentityCommand(subCommands[0], expectedSubCommands)
 				assertIdentityCommand(subCommands[1], expectedSubCommands)

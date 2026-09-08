@@ -48,7 +48,8 @@ func Test_generateCreateCommandForIdentity(t *testing.T) {
   "parentID": "",
   "parentType": "",
   "secret": "",
-  "status": "TODO"
+  "status": "TODO",
+  "subtaskList": null
 }`)
 			})
 		})
