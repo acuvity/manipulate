@@ -14,6 +14,7 @@ package manipulate
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/url"
 
 	"go.acuvity.ai/elemental"
@@ -171,9 +172,7 @@ func (c *mcontext) Derive(options ...ContextOption) Context {
 	var opaqueCopy map[string]any
 	if len(c.opaque) > 0 {
 		opaqueCopy = make(map[string]any, len(c.opaque))
-		for k, v := range c.opaque {
-			opaqueCopy[k] = v
-		}
+		maps.Copy(opaqueCopy, c.opaque)
 	}
 
 	var paramsCopy url.Values

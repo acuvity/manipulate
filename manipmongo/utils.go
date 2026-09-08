@@ -95,8 +95,7 @@ func HandleQueryError(err error) error {
 		return nil
 	}
 
-	var operationCtxErr *mongoOperationContextError
-	if errors.As(err, &operationCtxErr) {
+	if operationCtxErr, ok := errors.AsType[*mongoOperationContextError](err); ok {
 		return manipulate.ErrCannotExecuteQuery{Err: operationCtxErr.Err}
 	}
 
@@ -104,8 +103,7 @@ func HandleQueryError(err error) error {
 		return manipulate.ErrCannotCommunicate{Err: err}
 	}
 
-	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if _, ok := errors.AsType[net.Error](err); ok {
 		return manipulate.ErrCannotCommunicate{Err: err}
 	}
 
@@ -708,8 +706,8 @@ func makePipeline(
 		for _, f := range order {
 
 			cmp, op := 1, "$gt"
-			if strings.HasPrefix(f, "-") {
-				cmp, op, f = -1, "$lt", strings.TrimPrefix(f, "-")
+			if after0, ok := strings.CutPrefix(f, "-"); ok {
+				cmp, op, f = -1, "$lt", after0
 			}
 
 			hasID = hasID || f == "_id"
@@ -808,18 +806,15 @@ func queryError(err error) (*mongoQueryError, bool) {
 		return nil, false
 	}
 
-	var commandErr mongo.CommandError
-	if errors.As(err, &commandErr) {
+	if commandErr, ok := errors.AsType[mongo.CommandError](err); ok {
 		return &mongoQueryError{Code: int(commandErr.Code), Message: commandErr.Message, Err: commandErr}, true
 	}
 
-	var writeErr mongo.WriteError
-	if errors.As(err, &writeErr) {
+	if writeErr, ok := errors.AsType[mongo.WriteError](err); ok {
 		return &mongoQueryError{Code: writeErr.Code, Message: writeErr.Message, Err: writeErr}, true
 	}
 
-	var writeException mongo.WriteException
-	if errors.As(err, &writeException) {
+	if writeException, ok := errors.AsType[mongo.WriteException](err); ok {
 		if len(writeException.WriteErrors) > 0 {
 			we := writeException.WriteErrors[0]
 			return &mongoQueryError{Code: we.Code, Message: we.Message, Err: we}, true
@@ -830,8 +825,7 @@ func queryError(err error) (*mongoQueryError, bool) {
 		}
 	}
 
-	var bulkWriteException mongo.BulkWriteException
-	if errors.As(err, &bulkWriteException) {
+	if bulkWriteException, ok := errors.AsType[mongo.BulkWriteException](err); ok {
 		if len(bulkWriteException.WriteErrors) > 0 {
 			we := bulkWriteException.WriteErrors[0]
 			return &mongoQueryError{Code: we.Code, Message: we.Message, Err: we}, true
@@ -926,8 +920,7 @@ func isMongoIndexConflictError(err error) bool {
 		return false
 	}
 
-	var cmdErr mongo.CommandError
-	if errors.As(err, &cmdErr) {
+	if cmdErr, ok := errors.AsType[mongo.CommandError](err); ok {
 		switch cmdErr.Code {
 		case 85, 86:
 			return true
