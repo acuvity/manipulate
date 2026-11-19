@@ -14,10 +14,15 @@ package manipmongo
 import (
 	"context"
 	"fmt"
+	"math"
+	"reflect"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/mitchellh/copystructure"
 	"github.com/opentracing/opentracing-go/log"
 	"go.acuvity.ai/elemental"
 	"go.acuvity.ai/manipulate"
@@ -558,6 +563,9 @@ func (m *mongoManipulator) Create(mctx manipulate.Context, object elemental.Iden
 }
 
 func (m *mongoManipulator) Update(mctx manipulate.Context, object elemental.Identifiable) error {
+	if spec, conditional := manipulate.ConditionalUpdateFromContext(mctx); conditional {
+		return m.updateConditional(mctx, object, spec)
+	}
 
 	if mctx == nil {
 		ctx, cancel := contextWithDefaultTimeout(context.Background(), m.operationTimeout)
@@ -584,23 +592,10 @@ func (m *mongoManipulator) Update(mctx manipulate.Context, object elemental.Iden
 		elemental.ResetDefaultForZeroValues(a)
 	}
 
-	var filter bson.D
-	filter = append(filter, identifierFilterElement(object.Identifier()))
-	var ands []bson.D
-	sq, err := makeShardingOneFilter(m, mctx, object)
+	filter, err := m.updateFilter(mctx, object)
 	if err != nil {
 		return spanErr(sp, err)
 	}
-	if sq != nil {
-		ands = append(ands, sq)
-	}
-	if mctx.Namespace() != "" {
-		ands = append(ands, makeNamespaceFilter(mctx))
-	}
-	if m.forcedReadFilter != nil {
-		ands = append(ands, m.forcedReadFilter)
-	}
-	filter = composeAndFilter(filter, ands...)
 
 	setDoc, err := marshalMongoCompatibleUpdateDocument(object)
 	if err != nil {
@@ -898,6 +893,11 @@ func (m *mongoManipulator) Ping(timeout time.Duration) error {
 }
 
 func (m *mongoManipulator) makeDatabase(readConsistency manipulate.ReadConsistency, writeConsistency manipulate.WriteConsistency) *mongo.Database {
+	db, _ := m.makeDatabaseAndWriteConcern(readConsistency, writeConsistency)
+	return db
+}
+
+func (m *mongoManipulator) makeDatabaseAndWriteConcern(readConsistency manipulate.ReadConsistency, writeConsistency manipulate.WriteConsistency) (*mongo.Database, *writeconcern.WriteConcern) {
 	defaultReadConsistency, defaultWriteConsistency := m.defaultConsistency()
 	if readConsistency == manipulate.ReadConsistencyDefault {
 		readConsistency = defaultReadConsistency
@@ -910,10 +910,11 @@ func (m *mongoManipulator) makeDatabase(readConsistency manipulate.ReadConsisten
 	if rp := convertReadPreferenceMongo(readConsistency); rp != nil {
 		opts.SetReadPreference(rp)
 	}
-	if wc := convertWriteConcernMongo(writeConsistency); wc != nil {
+	wc := convertWriteConcernMongo(writeConsistency)
+	if wc != nil {
 		opts.SetWriteConcern(wc)
 	}
-	return m.client.Database(m.dbName, opts)
+	return m.client.Database(m.dbName, opts), wc
 }
 
 func (m *mongoManipulator) makeAcknowledgedDatabase() *mongo.Database {
@@ -941,4 +942,302 @@ func (m *mongoManipulator) defaultConsistency() (manipulate.ReadConsistency, man
 	m.consistencyMu.RLock()
 	defer m.consistencyMu.RUnlock()
 	return m.defaultReadConsistency, m.defaultWriteConsistency
+}
+
+func (m *mongoManipulator) updateConditional(ctx manipulate.Context, object elemental.Identifiable, spec manipulate.ConditionalUpdate) error {
+	if err := ctx.Context().Err(); err != nil {
+		return HandleQueryErrorMongo(err)
+	}
+	if ctx.TransactionID() != "" || mongo.SessionFromContext(ctx.Context()) != nil {
+		return manipulate.ErrNotImplemented{Err: fmt.Errorf("conditional updates do not support transaction contexts or explicit Mongo sessions")}
+	}
+	model, err := conditionalModel(object)
+	if err != nil {
+		return err
+	}
+	db, wc := m.makeDatabaseAndWriteConcern(ctx.ReadConsistency(), ctx.WriteConsistency())
+	if wc == nil || !wc.IsValid() || !wc.Acknowledged() {
+		return conditionalInvalid("conditional updates require acknowledged writes")
+	}
+	selector, update, err := m.revisionUpdate(ctx, object.(elemental.SparseIdentifiable), model, spec)
+	if err != nil {
+		return err
+	}
+	coll := db.Collection(object.Identity().Name)
+	opctx, cancel := context.WithTimeout(ctx.Context(), effectiveTimeout(m.operationTimeout))
+	defer cancel()
+	// Let the driver retry the same write. runQueryMongo would create a new write identity.
+	result, err := coll.UpdateOne(opctx, selector, update)
+	if err != nil {
+		return HandleQueryErrorMongo(err)
+	}
+	if !result.Acknowledged {
+		return manipulate.ErrCannotExecuteQuery{Err: fmt.Errorf("conditional update was not acknowledged")}
+	}
+	if result.MatchedCount == 0 {
+		return manipulate.ErrPreconditionFailed{}
+	}
+	return nil
+}
+
+func conditionalModel(object elemental.Identifiable) (elemental.AttributeSpecifiable, error) {
+	value := reflect.ValueOf(object)
+	patch, sparse := object.(elemental.SparseIdentifiable)
+	if !sparse || value.Kind() != reflect.Pointer || value.IsNil() || value.Elem().Kind() != reflect.Struct {
+		return nil, conditionalInvalid("conditional updates require a sparse model pointer")
+	}
+	if patch.Identifier() == "" || patch.Identity().Name == "" {
+		return nil, conditionalInvalid("conditional updates require a model and record identifier")
+	}
+	if model, ok := patch.(elemental.AttributeSpecifiable); ok {
+		return model, nil
+	}
+	// Generated sparse objects expose metadata through their plain type. Only
+	// encode the sparse object so the plain model's defaults never enter $set.
+	if model, ok := patch.ToPlain().(elemental.AttributeSpecifiable); ok {
+		return model, nil
+	}
+	return nil, conditionalInvalid("conditional updates require model attribute metadata")
+}
+
+func conditionalInvalid(message string) error {
+	return manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("%s", message)}
+}
+
+func (m *mongoManipulator) marshalConditionalPatch(patch elemental.SparseIdentifiable, identifier string) (elemental.SparseIdentifiable, bson.M, error) {
+	_, legacyCodec := patch.(legacyBSONGetter)
+	_, objectID := identifierMongoValue(identifier).(bson.ObjectID)
+	_, encryptable := patch.(elemental.AttributeEncryptable)
+	encrypt := encryptable && m.attributeEncrypter != nil
+	// Generated BSON getters require an ObjectID when an identifier is present.
+	omitID := legacyCodec && !objectID
+	if omitID || encrypt || m.sharder != nil {
+		copied, err := copystructure.Copy(patch)
+		if err != nil {
+			return nil, nil, manipulate.ErrCannotMarshal{Err: err}
+		}
+		if !reflect.DeepEqual(copied, patch) {
+			return nil, nil, manipulate.ErrCannotMarshal{Err: fmt.Errorf("conditional update cannot copy the sparse patch without losing model state")}
+		}
+		patch = copied.(elemental.SparseIdentifiable)
+	}
+	if encrypt {
+		if err := patch.(elemental.AttributeEncryptable).EncryptAttributes(m.attributeEncrypter); err != nil {
+			return nil, nil, manipulate.ErrCannotMarshal{Err: err}
+		}
+	}
+	if omitID {
+		patch.SetIdentifier("")
+		defer patch.SetIdentifier(identifier)
+	}
+	set, err := marshalMongoCompatibleUpdateDocument(patch)
+	if err != nil {
+		return nil, nil, manipulate.ErrCannotMarshal{Err: err}
+	}
+	return patch, set, nil
+}
+
+func (m *mongoManipulator) revisionUpdate(ctx manipulate.Context, patch elemental.SparseIdentifiable, model elemental.AttributeSpecifiable, check manipulate.ConditionalUpdate) (bson.D, bson.D, error) {
+	expected := check.ExpectedRevision
+	if check.RevisionField == "" || expected < 0 || expected == math.MaxInt64 || check.AllowMissingAtZero && expected != 0 {
+		return nil, nil, conditionalInvalid("conditional update requires a revision field and an incrementable nonnegative expectation; only zero may match absence")
+	}
+
+	identifier := patch.Identifier()
+	routePatch, set, err := m.marshalConditionalPatch(patch, identifier)
+	if err != nil {
+		return nil, nil, err
+	}
+	scope, err := conditionalNamespace(ctx, set)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var revision elemental.AttributeSpecification
+	metadata := model.AttributeSpecifications()
+	stored := make(map[string]elemental.AttributeSpecification, len(metadata))
+	for _, field := range metadata {
+		if strings.EqualFold(field.Name, "namespace") && (!field.Stored || field.BSONFieldName != "namespace") {
+			return nil, nil, manipulate.ErrNotImplemented{Err: fmt.Errorf("conditional updates require the native namespace storage key")}
+		}
+		if !field.Stored || !conditionalFieldKey(field.BSONFieldName) {
+			continue
+		}
+		stored[field.BSONFieldName] = field
+		if strings.EqualFold(field.Name, check.RevisionField) {
+			revision = field
+		}
+	}
+	key := revision.BSONFieldName
+	if revision.Type != "integer" || revision.Encrypted || revision.PrimaryKey || revision.CreationOnly || !conditionalIntegerInBounds(expected+1, revision.MinValue, revision.MaxValue) {
+		return nil, nil, conditionalInvalid("revision must be a stored, incrementable integer within model bounds")
+	}
+	if _, supplied := set[key]; supplied {
+		return nil, nil, conditionalInvalid("omit the server-incremented revision from the patch")
+	}
+
+	routing := map[string]bool{}
+	_, needsHash := stored["zhash"]
+	shard, err := m.conditionalShard(ctx, routePatch, set, needsHash, routing)
+	if err != nil {
+		return nil, nil, err
+	}
+	routing["_id"], routing["namespace"] = true, true
+	if routing[key] {
+		return nil, nil, conditionalInvalid("a routing field cannot be the revision")
+	}
+	for k := range set {
+		field, known := stored[k]
+		switch {
+		case routing[k] || field.PrimaryKey || field.CreationOnly:
+			delete(set, k)
+		case !known:
+			return nil, nil, conditionalInvalid(fmt.Sprintf("conditional patch contains an unknown stored field %q", k))
+		}
+	}
+	id := identifierFilterElement(identifier)
+	idFilter := bson.D{id}
+	if text, ok := id.Value.(string); ok {
+		idFilter = conditionalMatch(id.Key, text, false)
+	}
+	guard := conditionalMatch(key, expected, check.AllowMissingAtZero)
+	selector := composeAndFilter(idFilter, shard, scope, m.forcedReadFilter, makeUserFilter(ctx, model), guard)
+	update := bson.D{{Key: "$inc", Value: bson.M{key: int64(1)}}}
+	if len(set) != 0 {
+		update = append(update, bson.E{Key: "$set", Value: set})
+	}
+	return selector, update, nil
+}
+
+func conditionalFieldKey(key string) bool {
+	return key != "" && !strings.ContainsAny(key, ".$\x00")
+}
+
+func conditionalNamespace(ctx manipulate.Context, patch bson.M) (bson.D, error) {
+	scope := ctx.Namespace()
+	namespace := scope
+	if value, present := patch["namespace"]; present {
+		var ok bool
+		namespace, ok = value.(string)
+		if !ok {
+			return nil, conditionalInvalid("conditional namespace must be a scalar string")
+		}
+	} else if ctx.Recursive() || ctx.Propagated() {
+		return nil, conditionalInvalid("conditional patch must identify the exact namespace in a broad scope")
+	}
+
+	target := conditionalMatch("namespace", namespace, namespace == "")
+	if scope == "" || namespace == scope || ctx.Recursive() && elemental.IsNamespaceChildrenOfNamespace(namespace, scope) {
+		return target, nil
+	}
+	if ctx.Propagated() && slices.Contains(elemental.NamespaceAncestorsNames(scope), namespace) {
+		propagationFilter := manipulate.NewPropagationFilter
+		if ctx.PropagatedHidden() {
+			propagationFilter = manipulate.NewPropagationFilterWithHidden
+		}
+		return composeAndFilter(target, CompileFilter(propagationFilter(scope))), nil
+	}
+	// Two different exact namespaces give an acknowledged scope miss.
+	return composeAndFilter(target, conditionalMatch("namespace", scope, false)), nil
+}
+
+func (m *mongoManipulator) conditionalShard(ctx manipulate.Context, patch elemental.SparseIdentifiable, set bson.M, needsHash bool, routing map[string]bool) (bson.D, error) {
+	if m.sharder == nil {
+		return nil, nil
+	}
+	shard, err := makeShardingOneFilter(m, ctx, patch)
+	if err != nil {
+		return nil, err
+	}
+	exact := make(bson.D, 0, len(shard))
+	for _, entry := range shard {
+		if !conditionalFieldKey(entry.Key) || routing[entry.Key] {
+			return nil, conditionalInvalid("conditional updates require unique scalar shard equalities")
+		}
+		supplied, present := set[entry.Key]
+		switch v := entry.Value.(type) {
+		case string:
+			if present && supplied != v {
+				return nil, conditionalInvalid("conditional patch disagrees with shard routing")
+			}
+			exact = append(exact, conditionalMatch(entry.Key, v, false)...)
+		default:
+			want, ok := conditionalInteger(v)
+			if !ok {
+				return nil, conditionalInvalid("conditional updates require string or integer shard equalities")
+			}
+			if got, integer := conditionalInteger(supplied); present && (!integer || got != want) {
+				return nil, conditionalInvalid("conditional patch disagrees with shard routing")
+			}
+			exact = append(exact, conditionalMatch(entry.Key, want, false)...)
+		}
+		routing[entry.Key] = true
+	}
+	// A3S can return only the zone when a sparse model omits its hash.
+	if len(exact) == 0 || needsHash && !routing["zhash"] {
+		return nil, conditionalInvalid("conditional update requires complete shard routing")
+	}
+	return exact, nil
+}
+
+func conditionalMatch[T string | int64](key string, value T, allowMissing bool) bson.D {
+	predicate := bson.M{"$eq": value, "$type": bson.A{"int", "long"}, "$not": bson.M{"$type": "array"}}
+	if text, ok := any(value).(string); ok {
+		// Mongo regex ignores collation. Routing must match exactly without changing policy filters.
+		literal := strings.ReplaceAll(regexp.QuoteMeta(text), "\x00", "\\x00")
+		predicate["$type"], predicate["$regex"] = "string", "\\A"+literal+"\\z"
+	}
+	match := bson.D{{Key: key, Value: predicate}}
+	if allowMissing {
+		return bson.D{{Key: "$or", Value: bson.A{match, bson.M{key: bson.M{"$exists": false}}}}}
+	}
+	return match
+}
+
+func conditionalIntegerInBounds(value int64, min, max float64) bool {
+	const limit = 0x1p63
+	if max != 0 && (math.IsNaN(max) || max < -limit || max < limit && value > int64(math.Floor(max))) {
+		return false
+	}
+	if min != 0 && (math.IsNaN(min) || min >= limit || min > -limit && value < int64(math.Ceil(min))) {
+		return false
+	}
+	return true
+}
+
+func conditionalInteger(value any) (int64, bool) {
+	switch value := value.(type) {
+	case int:
+		return int64(value), true
+	case int32:
+		return int64(value), true
+	case int64:
+		return value, true
+	default:
+		return 0, false
+	}
+}
+
+func (m *mongoManipulator) updateFilter(ctx manipulate.Context, object elemental.Identifiable) (bson.D, error) {
+	identifier := object.Identifier()
+	shard, err := makeShardingOneFilter(m, ctx, object)
+	if err != nil {
+		return nil, err
+	}
+	return m.updateSelector(ctx, identifier, shard), nil
+}
+
+func (m *mongoManipulator) updateSelector(ctx manipulate.Context, identifier string, shard bson.D) bson.D {
+	filter := bson.D{identifierFilterElement(identifier)}
+	var clauses []bson.D
+	if shard != nil {
+		clauses = append(clauses, shard)
+	}
+	if ctx.Namespace() != "" {
+		clauses = append(clauses, makeNamespaceFilter(ctx))
+	}
+	if m.forcedReadFilter != nil {
+		clauses = append(clauses, m.forcedReadFilter)
+	}
+	return composeAndFilter(filter, clauses...)
 }

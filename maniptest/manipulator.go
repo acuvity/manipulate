@@ -12,6 +12,7 @@
 package maniptest
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -169,6 +170,9 @@ func (m *testManipulator) Create(mctx manipulate.Context, object elemental.Ident
 }
 
 func (m *testManipulator) Update(mctx manipulate.Context, object elemental.Identifiable) error {
+	if _, conditional := manipulate.ConditionalUpdateFromContext(mctx); conditional {
+		return manipulate.ErrNotImplemented{Err: fmt.Errorf("conditional updates are not supported by maniptest")}
+	}
 
 	m.lock.Lock()
 	defer m.lock.Unlock()

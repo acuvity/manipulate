@@ -304,6 +304,9 @@ func (s *httpManipulator) Create(mctx manipulate.Context, object elemental.Ident
 }
 
 func (s *httpManipulator) Update(mctx manipulate.Context, object elemental.Identifiable) error {
+	if _, conditional := manipulate.ConditionalUpdateFromContext(mctx); conditional {
+		return manipulate.ErrNotImplemented{Err: fmt.Errorf("conditional updates are not supported by maniphttp")}
+	}
 
 	if object == nil {
 		return manipulate.ErrCannotBuildQuery{Err: fmt.Errorf("nil object")}
