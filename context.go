@@ -145,10 +145,14 @@ type mcontext struct {
 }
 
 // NewContext creates a context with the given ContextOption.
+// A new operation does not inherit a parent's conditional update.
 func NewContext(ctx context.Context, options ...ContextOption) Context {
 
 	if ctx == nil {
 		panic("nil context")
+	}
+	if _, conditional := ctx.Value(conditionalUpdateKey{}).(ConditionalUpdate); conditional {
+		ctx = context.WithValue(ctx, conditionalUpdateKey{}, nil)
 	}
 
 	mctx := &mcontext{

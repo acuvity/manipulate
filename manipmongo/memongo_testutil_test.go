@@ -17,16 +17,22 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
 )
 
+type mongoTestEndpoint struct {
+	uri         string
+	cleanup     func()
+	allowFaults bool
+}
+
 var (
-	mongoEndpointOnce    sync.Once
-	mongoEndpointURI     string
-	mongoEndpointErr     error
-	mongoEndpointCleanup func()
+	mongoEndpointOnce sync.Once
+	mongoEndpoint     mongoTestEndpoint
+	mongoEndpointErr  error
 )
 
 const requireMemongoEnv = "REQUIRE_MEMONGO"
 const requireMongoEnv = "REQUIRE_MONGO"
 const mongoTestURIEnv = "MONGO_TEST_URI"
+const mongoTestOwnedFaultsEnv = "MONGO_TEST_OWNED_FAULTS"
 const mongoTestDockerImageEnv = "MONGO_TEST_DOCKER_IMAGE"
 const mongoTestDockerStartupTimeoutEnv = "MONGO_TEST_DOCKER_STARTUP_TIMEOUT"
 const mongoTestDockerDisableEnv = "MONGO_TEST_DOCKER_DISABLE"
@@ -64,7 +70,7 @@ func requireMemongo(t *testing.T) (uri string, db string) {
 	t.Helper()
 
 	mongoEndpointOnce.Do(func() {
-		mongoEndpointURI, mongoEndpointCleanup, mongoEndpointErr = resolveMongoTestEndpoint()
+		mongoEndpoint, mongoEndpointErr = resolveMongoTestEndpoint()
 	})
 
 	if mongoEndpointErr != nil {
@@ -74,18 +80,18 @@ func requireMemongo(t *testing.T) (uri string, db string) {
 	db = dbNameForTest(t)
 
 	t.Cleanup(func() {
-		_ = DropDatabaseByURI(mongoEndpointURI, db)
+		_ = DropDatabaseByURI(mongoEndpoint.uri, db)
 	})
 
-	return mongoEndpointURI, db
+	return mongoEndpoint.uri, db
 }
 
-func resolveMongoTestEndpoint() (string, func(), error) {
+func resolveMongoTestEndpoint() (mongoTestEndpoint, error) {
 	var errs []error
 
 	if uri := strings.TrimSpace(os.Getenv(mongoTestURIEnv)); uri != "" {
 		if err := pingMongoURI(uri, 5*time.Second); err == nil {
-			return uri, nil, nil
+			return mongoTestEndpoint{uri: uri, allowFaults: envBoolTrue(os.Getenv(mongoTestOwnedFaultsEnv))}, nil
 		} else {
 			errs = append(errs, fmt.Errorf("%s is set but unavailable: %w", mongoTestURIEnv, err))
 		}
@@ -93,16 +99,16 @@ func resolveMongoTestEndpoint() (string, func(), error) {
 
 	if envBoolTrue(os.Getenv(mongoTestDockerDisableEnv)) {
 		errs = append(errs, fmt.Errorf("docker provisioning disabled by %s", mongoTestDockerDisableEnv))
-		return "", nil, errors.Join(errs...)
+		return mongoTestEndpoint{}, errors.Join(errs...)
 	}
 
 	uri, cleanup, err := startDockerMongo()
 	if err == nil {
-		return uri, cleanup, nil
+		return mongoTestEndpoint{uri: uri, cleanup: cleanup, allowFaults: true}, nil
 	}
 
 	errs = append(errs, fmt.Errorf("docker mongo provisioning failed: %w", err))
-	return "", nil, errors.Join(errs...)
+	return mongoTestEndpoint{}, errors.Join(errs...)
 }
 
 func mongoTestDockerImage() string {
@@ -130,7 +136,7 @@ func startDockerMongo() (uri string, cleanup func(), err error) {
 	}
 
 	containerName := fmt.Sprintf("manipmongo-test-%d", time.Now().UnixNano())
-	out, err := dockerCommand("run", "--rm", "-d", "-P", "--name", containerName, mongoTestDockerImage(), "--bind_ip_all")
+	out, err := dockerCommand("run", "--rm", "-d", "--publish", "127.0.0.1::27017", "--name", containerName, mongoTestDockerImage(), "--bind_ip_all", "--setParameter", "enableTestCommands=1")
 	if err != nil {
 		return "", nil, fmt.Errorf("docker run failed: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
@@ -300,8 +306,8 @@ func DropDatabaseByURI(uri, db string) error {
 
 func TestMain(m *testing.M) {
 	code := m.Run()
-	if mongoEndpointCleanup != nil {
-		mongoEndpointCleanup()
+	if mongoEndpoint.cleanup != nil {
+		mongoEndpoint.cleanup()
 	}
 	os.Exit(code)
 }

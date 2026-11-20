@@ -268,6 +268,9 @@ func (m *vortexManipulator) Create(mctx manipulate.Context, object elemental.Ide
 }
 
 func (m *vortexManipulator) Update(mctx manipulate.Context, object elemental.Identifiable) error {
+	if _, conditional := manipulate.ConditionalUpdateFromContext(mctx); conditional {
+		return manipulate.ErrNotImplemented{Err: fmt.Errorf("conditional updates are not supported by manipvortex")}
+	}
 
 	m.RLock()
 	defer m.RUnlock()

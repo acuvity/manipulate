@@ -176,6 +176,9 @@ func (m *memdbManipulator) Create(mctx manipulate.Context, object elemental.Iden
 
 // Update is part of the implementation of the Manipulator interface.
 func (m *memdbManipulator) Update(mctx manipulate.Context, object elemental.Identifiable) error {
+	if _, conditional := manipulate.ConditionalUpdateFromContext(mctx); conditional {
+		return manipulate.ErrNotImplemented{Err: fmt.Errorf("conditional updates are not supported by manipmemory")}
+	}
 
 	if mctx == nil {
 		mctx = manipulate.NewContext(context.Background())

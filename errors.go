@@ -73,6 +73,18 @@ func IsCannotMarshalError(err error) bool {
 	return errors.As(err, &ErrCannotMarshal{})
 }
 
+// ErrPreconditionFailed means an acknowledged conditional write matched no
+// object. It does not distinguish a changed version, missing object, or scope miss.
+type ErrPreconditionFailed struct{}
+
+// Error returns the conditional miss description.
+func (ErrPreconditionFailed) Error() string { return "Conditional update precondition failed" }
+
+// IsPreconditionFailedError reports whether err is an ErrPreconditionFailed.
+func IsPreconditionFailedError(err error) bool {
+	return errors.As(err, &ErrPreconditionFailed{})
+}
+
 // ErrObjectNotFound represents object not found error.
 type ErrObjectNotFound struct{ Err error }
 
